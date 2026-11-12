@@ -47,10 +47,27 @@ if (window.Telegram && window.Telegram.WebApp) {
 
 /* ============ Магазин (Telegram Stars) ============ */
 const SHOP_ITEMS = [
-  { id: 'pack_100',  title: '50 звёзд',   stars: 50,  price: 50,  invoice: 'ССЫЛКА_100'  },
-  { id: 'pack_500',  title: '150 звёзд',  stars: 150,  price: 100, invoice: 'ССЫЛКА_100'  },
-  { id: 'pack_2000', title: '250 звёзд',  stars: 250, price: 200, invoice: 'ССЫЛКА_200' }
-
+  { 
+    id: 'pack_50',  
+    title: '50 звёзд',  
+    stars: 50,  
+    price: 50,  
+    invoice: 'https://t.me/$rNLOUO7QqEsSHAAASSFMIXuaCuo' 
+  },
+  { 
+    id: 'pack_150', 
+    title: '150 звёзд', 
+    stars: 150, 
+    price: 100, 
+    invoice: 'https://t.me/$cLUOne7QqEsTHAAAJ4geWB1XpE0' 
+  },
+  { 
+    id: 'pack_250', 
+    title: '250 звёзд', 
+    stars: 250, 
+    price: 200, 
+    invoice: 'https://t.me/$bV33OO7QqEsUHAAAqUbLn5AahAQ' 
+  }
 ];
 
 function buyStars(item){
