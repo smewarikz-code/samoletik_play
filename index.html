@@ -14,11 +14,65 @@
 <script>
 
 /* ============ Telegram Mini App ============ */
-let tg = null;                                 //
+let tg = null;
+let pendingPack = null;
+
 if (window.Telegram && window.Telegram.WebApp) {
-  tg = window.Telegram.WebApp;                 // 
+  tg = window.Telegram.WebApp;
   tg.ready();
   tg.expand();
+  tg.onEvent('invoiceClosed', ev => {
+    const status = ev && ev.status ? ev.status : ev;
+    if (pendingPack && status === 'paid'){
+      save.stars += pendingPack.stars;
+      persist();
+      haptic('medium');
+      pendingPack = null;
+      state = 'menu';
+    } else {
+      pendingPack = null;   // отмена или ошибка — ничего не начисляем
+    }
+  });
+}
+
+
+/* ============ Магазин (Telegram Stars) ============ */
+const SHOP_ITEMS = [
+  { id: 'pack_100',  title: '50 звёзд',   stars: 50,  price: 50,  invoice: 'ССЫЛКА_100'  },
+  { id: 'pack_500',  title: '150 звёзд',  stars: 150,  price: 100, invoice: 'ССЫЛКА_100'  },
+  { id: 'pack_2000', title: '250 звёзд',  stars: 250, price: 200, invoice: 'ССЫЛКА_200' }
+
+];
+
+function buyStars(item){
+  if (!tg || !tg.openInvoice){
+    alert('Покупки доступны только в Telegram');
+    return;
+  }
+  pendingPack = item;
+  try { tg.openInvoice(item.invoice); } catch(e){ pendingPack = null; }
+}
+/* ============ Экран пополнения ============ */
+function drawTopUp(){
+  ctx.fillStyle = 'rgba(10,30,50,.45)'; ctx.fillRect(0,0,W,H);
+  const pw = Math.min(320*S, W-40), ph = 300*S;
+  const px = W/2-pw/2, py = H/2-ph/2;
+  panel(px, py, pw, ph);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#0b4a6f';
+  ctx.font = '800 ' + Math.round(26*S) + 'px Arial, sans-serif';
+  ctx.fillText('Пополнение', W/2, py + 40*S);
+  ctx.font = '600 ' + Math.round(18*S) + 'px Arial, sans-serif';
+  ctx.fillText('Баланс: ⭐ ' + save.stars, W/2, py + 66*S);
+
+  const bw = Math.min(240*S, pw-40), bh = 44*S, gap = 10*S;
+  let yy = py + 86*S;
+  for (const p of SHOP_ITEMS){
+    const it = p;
+    button(W/2-bw/2, yy, bw, bh, '+' + it.stars + ' ⭐ — ' + it.price + '★', () => buyStars(it), '#2AABEE');
+    yy += bh + gap;
+  }
+  button(W/2-bw/2, yy + 6*S, bw, bh, 'Отмена', () => { state = 'menu'; }, '#5b7a8c');
 }
 
 const cvs = document.getElementById('game');
@@ -718,8 +772,9 @@ window.addEventListener('keydown', e => {
   else if (state === 'menu') startGame(1);
   else if (state === 'over' && performance.now()-overTime > 600) startGame(lastStart);
   else if (state === 'pause') state = 'play';
-  else if (state === 'shop' || state === 'levels' || state === 'records') toMenu();
+  else if (state === 'shop' || state === 'levels' || state === 'records' || state === 'topup') toMenu();
 });
+
 
 /* ============ Логика ============ */
 let k_last = 1;
@@ -1041,6 +1096,7 @@ function drawMenu(){
   button(x, y0 + (bh+gap)*2,  bw, bh, 'Магазин',      ()=>{ state='shop'; }, '#1f8fc9');
   button(x, y0 + (bh+gap)*3,  bw, bh, 'Рекорды',      ()=>{ state='records'; }, '#1f8fc9');
   const fs = 34*S;
+  button(x, y0 + (bh+gap)*4,  bw, bh, 'Пополнить звёзды', ()=>{ state='topup'; }, '#f5a623');
   button(W - fs - 12*S, 12*S, fs, fs, '⛶', goFull, 'rgba(10,50,80,.55)');
 }
 
@@ -1340,12 +1396,16 @@ function render(){
 
   if (state === 'menu') drawMenu();
   if (state === 'levels') drawLevels();
-  if (state === 'shop') drawShop();
   if (state === 'records') drawRecords();
   if (state === 'pause') drawPause();
   if (state === 'pass') drawPass();
   if (state === 'over') drawOver();
   if (state === 'win') drawWin();
+  if (state === 'shop') drawShop();
+  if (state === 'topup') drawTopUp();
+
+
+
 
   ctx.restore();
 }
