@@ -174,7 +174,7 @@ function themeIndexOf(lvl){ return Math.floor(((lvl|0)-1)/2) % THEMES.length; }
 function themeOf(lvl){ return THEMES[themeIndexOf(lvl)] || THEMES[0]; }
 
 
-function levelSpeed(lvl){ return SPEEDV * (1 + Math.min((lvl-1)*0.02, 1.4)); }
+function levelSpeed(lvl){ return SPEEDV * (1 + Math.min((lvl-1)*0.012, 1.4)); }
 function levelGap(lvl){ return Math.max(150*S, GAP * (1 - Math.min((lvl-1)*0.004, 0.4))); }
 function levelSpacing(lvl){ return Math.max(170*S, 240*S - Math.min((lvl-1)*0.5*S, 70*S)); }
 
@@ -239,7 +239,7 @@ function resize(){
   cvs.height = Math.max(2, Math.round(H*dpr));
   ctx.setTransform(dpr,0,0,dpr,0,0);
   S = Math.min(H/700, W/450);
-  GRAV = .5*S; FLAPV = -8.6*S; SPEEDV = 3.1*S;
+  GRAV = .5*S; FLAPV = -8.6*S; SPEEDV = 2.1*S;
   PIPE_W = 66*S; GAP = Math.min(250*S, H*.45); PLANE_R = 15*S; GROUND_H = 40*S;
   bgCache = {}; pipePatterns = {}; planeCache = {};
   cloudSpr = null; buildTiles();
@@ -826,22 +826,24 @@ function spawnPipe(lvl){
   const gapY = margin + gap/2 + Math.random()*(H - gap - margin*2);
   const p = { x: W+PIPE_W, gapY, gap, passed:false };
 
-  // Каждый 2-й уровень — подвижные баррикады
+      // Каждый 2-й уровень — подвижные баррикады (упрощённая версия)
   if (lvl % 2 === 0){
     if (lvl % 4 === 2){                 // уровни 2, 6, 10... — трубы качаются
       p.mode = 'move';
       p.baseY = gapY;
       p.phase = Math.random()*Math.PI*2;
-      p.amp = Math.min(36, 14 + Math.floor(lvl/2)*3) * S;  // амплитуда растёт
-      p.spd = 0.8 + Math.min(1.0, (lvl-2)*0.06);           // скорость растёт
+      p.amp = Math.min(22, 10 + Math.floor(lvl/2)*2) * S;  // было до 36 → стало до 22
+      p.spd = 0.55 + Math.min(0.6, (lvl-2)*0.04);          // было до 1.8 → стало до 1.15
     } else {                            // уровни 4, 8, 12... — зазор «дышит»
       p.mode = 'pulse';
       p.baseGap = gap;
       p.phase = Math.random()*Math.PI*2;
-      p.amp = Math.min(20, 8 + Math.floor(lvl/4)*3) * S;
-      p.spd = 0.9 + Math.min(1.0, (lvl-4)*0.06);
+      p.amp = Math.min(12, 5 + Math.floor(lvl/4)*2) * S;   // было до 20 → стало до 12
+      p.spd = 0.6 + Math.min(0.6, (lvl-4)*0.04);           // было до 1.9 → стало до 1.2
     }
   }
+
+
   pipes.push(p);
 }
 
@@ -953,7 +955,7 @@ function step(k){
       p.gapY = Math.max(p.gap/2 + 40*S, Math.min(H - GROUND_H - p.gap/2 - 40*S, ny));
     } else if (p.mode === 'pulse'){
       const ng = p.baseGap + Math.sin(t*0.035*p.spd + p.phase) * p.amp;
-      p.gap = Math.max(120*S, ng);
+            p.gap = Math.max(180*S, ng);
     }
     p.x -= speed*k;
     if (!p.passed && p.x+PIPE_W < plane.x-PLANE_R){ p.passed = true; addScore(1); haptic('light'); if (state!=='play') return; }
@@ -1189,7 +1191,7 @@ function drawLevels(){
     if (lvl > MAX_LEVEL) break;
     const cx = mx + (i%cols)*(cw+gap);
     const cy = top + Math.floor(i/cols)*(ch+gap);
-    const unlocked = true;
+    const unlocked = lvl <= save.maxLevel;
     if (unlocked){
       const th = themeOf(lvl);
       ctx.fillStyle = th.skyTop;
