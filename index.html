@@ -58,8 +58,17 @@ function buyStars(item){
     alert('Покупки доступны только в Telegram');
     return;
   }
+  if (item.invoice.startsWith('ССЫЛКА')) {
+    alert('Ссылка на оплату ещё не настроена. Нужно сгенерировать инвойс.');
+    return;
+  }
   pendingPack = item;
-  try { tg.openInvoice(item.invoice); } catch(e){ pendingPack = null; }
+  try {
+    tg.openInvoice(item.invoice);
+  } catch(e){
+    pendingPack = null;
+    alert('Ошибка открытия счёта: ' + e);
+  }
 }
 /* ============ Экран пополнения ============ */
 function drawTopUp(){
