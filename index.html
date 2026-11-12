@@ -15,6 +15,14 @@
 
 /* ============ Telegram Mini App ============ */
 let tg = null;
+console.log('Проверка Telegram:', window.Telegram, window.Telegram?.WebApp);
+if (!window.Telegram) {
+  console.error('ОШИБКА: window.Telegram не существует! Игра запущена не в Telegram.');
+} else if (!window.Telegram.WebApp) {
+  console.error('ОШИБКА: Telegram есть, но WebApp не инициализирован.');
+} else {
+  console.log('✅ Telegram WebApp успешно обнаружен!');
+}
 let pendingPack = null;
 
 if (window.Telegram && window.Telegram.WebApp) {
