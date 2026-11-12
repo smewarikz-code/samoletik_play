@@ -670,7 +670,7 @@ function spawnTrail(){
 else if (sk.trail === 'gold'){ p.type='star4'; p.r=(2.5+Math.random()*2.5)*S; p.col='255,215,94'; }
 else if (sk.trail === 'spark'){ p.type='star4'; p.r=(2+Math.random()*3)*S; p.col='200,150,255'; }
 else if (sk.trail === 'ghost'){ p.type='circle'; p.r=(2+Math.random()*3)*S; p.col='220,240,250'; }
-else { p.type='shard'; p.r=(2+Math.random()*3)*S; p.col='168,221,245'; }
+else if (sk.trail === 'ice'){ p.type='shard'; p.r=(2+Math.random()*3)*S; p.col='168,221,245'; }
 
   pushFx(p);
 }
@@ -1189,7 +1189,7 @@ function drawLevels(){
     if (lvl > MAX_LEVEL) break;
     const cx = mx + (i%cols)*(cw+gap);
     const cy = top + Math.floor(i/cols)*(ch+gap);
-    const unlocked = lvl <= save.maxLevel;
+    const unlocked = true;
     if (unlocked){
       const th = themeOf(lvl);
       ctx.fillStyle = th.skyTop;
