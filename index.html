@@ -2441,11 +2441,8 @@ function drawRecords(){
     ctx.fillStyle = '#ffd34d'; roundRect(trackX, thumbY, 2*S, thumbH, 1*S); ctx.fill(); ctx.restore();
   }
   ctx.save();
-  ctx.font = Math.round(Math.max(7*S, 6)) + 'px Arial, sans-serif';
-  ctx.fillStyle = '#ffe08a'; ctx.textAlign = 'center';
-  ctx.fillText('Каждую субботу: сброс недельного рекорда, топа и уровней улучшений', leftX+colW/2, H-19*S, colW-8*S);
   ctx.font = Math.round(Math.max(8*S, 7)) + 'px Arial, sans-serif';
-  ctx.fillStyle = '#c7eaff';
+  ctx.fillStyle = '#c7eaff'; ctx.textAlign = 'center';
   ctx.fillText(translateText('Глобальный рейтинг игроков'), leftX+colW/2, H-8*S, colW-8*S);
   ctx.restore();
 
@@ -2477,6 +2474,36 @@ function drawRecords(){
     ctx.fillText(String(rows[i][1]), rightX+colW/2, yy+34*S, colW-12*S);
     ctx.restore();
   }
+
+  // Уведомление о еженедельном сбросе — справа, сразу под таблицей достижений.
+  const noticeTop = startY + rows.length*(rowH+rowGap) + 8*S;
+  ctx.save();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillStyle = '#ffe08a';
+  ctx.font = '900 ' + Math.round(Math.max(12*S, 11)) + 'px Arial, sans-serif';
+  ctx.shadowColor = 'rgba(0,0,0,.65)'; ctx.shadowBlur = 4*S;
+  ctx.fillText('Прочитай!', rightX+colW/2, noticeTop, colW-10*S);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#fff2c9';
+  ctx.font = '700 ' + Math.round(Math.max(10*S, 9)) + 'px Arial, sans-serif';
+  const notice = 'Каждую субботу происходит сброс недельного рекорда, топа и уровней улучшений.';
+  const words = notice.split(' ');
+  const maxWidth = colW-12*S;
+  const lines = [];
+  let line = '';
+  for (const word of words) {
+    const test = line ? line + ' ' + word : word;
+    if (line && ctx.measureText(test).width > maxWidth) {
+      lines.push(line);
+      line = word;
+    } else line = test;
+  }
+  if (line) lines.push(line);
+  const lineHeight = Math.max(13*S, 12);
+  lines.forEach((part, index) => {
+    ctx.fillText(part, rightX+colW/2, noticeTop+19*S+index*lineHeight, maxWidth);
+  });
+  ctx.restore();
 
 }
 function drawPause(){
