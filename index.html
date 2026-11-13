@@ -385,6 +385,21 @@ function load(){
 }
 function persist(){ try { localStorage.setItem('tgPlaneSave3', JSON.stringify(save)); } catch(e){} }
 load();
+if (tg && tg.initData && !save.myScoreResetV1) {
+  save.best = 0;
+  save.weeklyBest = 0;
+  save.localLeaderboard = [];
+  save.myScoreResetV1 = true;
+  persist();
+  fetch(LEADERBOARD_API + '/api/score/reset', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ initData: tg.initData })
+  }).then(r => {
+    if (!r.ok) throw new Error('score reset failed');
+    return r.json();
+  }).catch(err => console.error('Не удалось сбросить личный рейтинг:', err));
+}
 persist();
 // Забираем оплаченные, но ещё не начисленные покупки при повторном открытии игры.
 if (tg && tg.initData) claimPurchasedStars(1);
@@ -1036,7 +1051,7 @@ function changePlayerName(){
 function openLeaderboardTelegramProfile(item){
   if (!item) return;
   const username = String(item.username || item.telegramUsername || '').trim().replace(/^@/, '');
-  const telegramId = String(item.telegramId || '').trim();
+  const telegramId = String(item.telegramId || item.telegram_id || '').trim();
   if (username){
     const url = 'https://t.me/' + encodeURIComponent(username);
     if (tg && typeof tg.openTelegramLink === 'function') tg.openTelegramLink(url);
@@ -2251,12 +2266,10 @@ function drawRecords(){
   ctx.font = '800 ' + Math.round(Math.max(10*S, 9)) + 'px Arial, sans-serif';
   const rankCol = leftX + 18*S;
   const nameColX = leftX + 42*S;
-  const telegramColX = leftX + colW*.62;
   const scoreColX = leftX + colW - 12*S;
   ctx.textAlign = 'left'; ctx.fillStyle = '#ffe08a';
   ctx.fillText('№', rankCol, listY+15*S);
-  ctx.fillText(translateText('ИГРОК'), nameColX, listY+15*S, Math.max(24*S, telegramColX-nameColX-7*S));
-  ctx.fillText('TELEGRAM', telegramColX, listY+15*S, Math.max(24*S, scoreColX-telegramColX-7*S));
+  ctx.fillText(translateText('ИГРОК'), nameColX, listY+15*S, Math.max(24*S, scoreColX-nameColX-30*S));
   ctx.textAlign = 'right'; ctx.fillText(translateText('ОЧКИ'), scoreColX, listY+15*S);
   ctx.strokeStyle = 'rgba(255,211,77,.65)'; ctx.lineWidth = 1*S;
   ctx.beginPath(); ctx.moveTo(leftX+8*S, listY+29*S); ctx.lineTo(leftX+colW-8*S, listY+29*S); ctx.stroke();
@@ -2309,7 +2322,7 @@ function drawRecords(){
     let nm = String(item.display_name || item.name || 'Игрок');
     ctx.textAlign = 'left'; ctx.fillStyle = '#ffffff';
     ctx.font = '800 ' + Math.round(Math.max(10*S, 9)) + 'px Arial, sans-serif';
-    const nameMaxW = Math.max(12*S, telegramColX - nameColX - 8*S);
+    const nameMaxW = Math.max(12*S, scoreColX - nameColX - 30*S);
     while (nm.length > 1 && ctx.measureText(nm).width > nameMaxW) nm = nm.slice(0,-1);
     if (nm !== String(item.display_name || item.name || 'Игрок')) {
       while (nm.length > 1 && ctx.measureText(nm+'…').width > nameMaxW) nm = nm.slice(0,-1);
@@ -2317,21 +2330,6 @@ function drawRecords(){
     }
     ctx.fillText(nm, nameColX, yy+leaderboardRowH/2, nameMaxW);
 
-    // Отдельная колонка Telegram: username открывается как t.me/username,
-    // а при его отсутствии показываем Telegram ID (переход зависит от клиента Telegram).
-    const tgName = String(item.username || item.telegramUsername || '').trim().replace(/^@/, '');
-    const tgId = String(item.telegramId || '').trim();
-    let tgLabel = tgName ? '@' + tgName : (tgId ? 'ID ' + tgId : '—');
-    const tgMaxW = Math.max(12*S, scoreColX - telegramColX - 8*S);
-    ctx.textAlign = 'left';
-    ctx.fillStyle = (tgName || tgId) ? '#76dcff' : 'rgba(210,230,245,.55)';
-    ctx.font = '700 ' + Math.round(Math.max(8*S, 7)) + 'px Arial, sans-serif';
-    while (tgLabel.length > 1 && ctx.measureText(tgLabel).width > tgMaxW) tgLabel = tgLabel.slice(0,-1);
-    if (tgLabel !== (tgName ? '@' + tgName : (tgId ? 'ID ' + tgId : '—')) && tgLabel !== '—') {
-      while (tgLabel.length > 1 && ctx.measureText(tgLabel+'…').width > tgMaxW) tgLabel = tgLabel.slice(0,-1);
-      tgLabel += '…';
-    }
-    ctx.fillText(tgLabel, telegramColX, yy+leaderboardRowH/2, tgMaxW);
     ctx.textAlign = 'right'; ctx.fillStyle = '#ffd34d';
     ctx.font = '900 ' + Math.round(Math.max(11*S, 10)) + 'px Arial, sans-serif';
     ctx.fillText(String(Number(item.best_score ?? item.score)||0), scoreColX, yy+leaderboardRowH/2, colW*.25);
