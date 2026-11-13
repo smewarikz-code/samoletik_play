@@ -1465,20 +1465,15 @@ function drawLanguageControl() {
 
 /* ============ Экраны ============ */
 function drawMenu(){
-  // Размытая подложка заполняет экран, а постер целиком остаётся чётким.
+  // Один экземпляр постера в режиме cover: без размытой/второй копии.
+  // Картинка заполняет весь экран, сохраняя пропорции; лишнее обрезается по краям.
   ctx.save();
   ctx.fillStyle = '#071b35';
   ctx.fillRect(0,0,W,H);
   if (menuPoster.complete && menuPoster.naturalWidth){
     const iw = menuPoster.naturalWidth, ih = menuPoster.naturalHeight;
-    const cover = Math.max(W/iw, H/ih);
-    const bw = iw*cover, bh = ih*cover;
-    ctx.save();
-    ctx.filter = 'blur(18px) brightness(.48)';
-    ctx.drawImage(menuPoster, (W-bw)/2, (H-bh)/2, bw, bh);
-    ctx.restore();
-    const contain = Math.min(W/iw, H/ih);
-    const dw = iw*contain, dh = ih*contain;
+    const scale = Math.max(W/iw, H/ih);
+    const dw = iw*scale, dh = ih*scale;
     ctx.drawImage(menuPoster, (W-dw)/2, (H-dh)/2, dw, dh);
   }
   const shade = ctx.createLinearGradient(0,H*.52,0,H);
