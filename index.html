@@ -26,6 +26,7 @@ if (!window.Telegram) {
   console.log('✅ Telegram WebApp успешно обнаружен!');
 }
 let pendingPack = null;
+let starStatusNoticeShown = false;
 
  // ============ Глобальный рейтинг (Render API) ============
 const LEADERBOARD_API = 'https://samoletik-server.onrender.com';
@@ -119,6 +120,32 @@ async function claimPurchasedStars(retries = 1){
     } catch (err) {
       console.error('Не удалось получить купленные звёзды:', err);
       if (attempt + 1 < retries) await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+  if (!starStatusNoticeShown) {
+    starStatusNoticeShown = true;
+    try {
+      const response = await fetch(LEADERBOARD_API + '/api/stars/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: tg.initData })
+      });
+      const status = await response.json();
+      if (response.ok) {
+        const latest = Array.isArray(status.recent_invoices) ? status.recent_invoices[0] : null;
+        if (latest) {
+          alert('Проверка оплаты: серверный баланс — ' + status.server_balance +
+            ' игровых звёзд. Последний счёт: ' + latest.game_stars +
+            ' звёзд, статус — ' + latest.status +
+            ', запись платежа — ' + (latest.payment_recorded ? 'есть' : 'нет') + '.');
+        } else {
+          alert('Проверка оплаты: сервер не нашёл счетов для этого аккаунта.');
+        }
+      } else {
+        console.warn('Не удалось проверить статус оплаты:', status.error || response.status);
+      }
+    } catch (err) {
+      console.warn('Не удалось получить статус оплаты:', err);
     }
   }
   return 0;
