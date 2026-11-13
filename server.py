@@ -14,7 +14,6 @@ from flask_cors import CORS
 from psycopg.rows import dict_row
 
 app = Flask(__name__)
-
 allowed_origin = os.environ.get("GAME_ORIGIN", "*")
 CORS(app, resources={r"/api/*": {"origins": allowed_origin}},
      methods=["GET", "POST", "OPTIONS"], allow_headers=["Content-Type"])
@@ -55,10 +54,8 @@ def ensure_schema(conn):
     conn.execute("ALTER TABLE players ADD COLUMN IF NOT EXISTS stars_balance BIGINT NOT NULL DEFAULT 0")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS star_invoices (
-            payload TEXT PRIMARY KEY,
-            telegram_id BIGINT NOT NULL,
-            game_stars INTEGER NOT NULL,
-            price_xtr INTEGER NOT NULL,
+            payload TEXT PRIMARY KEY, telegram_id BIGINT NOT NULL,
+            game_stars INTEGER NOT NULL, price_xtr INTEGER NOT NULL,
             status TEXT NOT NULL DEFAULT 'pending',
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
@@ -66,10 +63,8 @@ def ensure_schema(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS star_payments (
             telegram_payment_charge_id TEXT PRIMARY KEY,
-            payload TEXT NOT NULL UNIQUE,
-            telegram_id BIGINT NOT NULL,
-            game_stars INTEGER NOT NULL,
-            total_amount INTEGER NOT NULL,
+            payload TEXT NOT NULL UNIQUE, telegram_id BIGINT NOT NULL,
+            game_stars INTEGER NOT NULL, total_amount INTEGER NOT NULL,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
     """)
@@ -113,8 +108,8 @@ def telegram_api(method, payload):
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
     if not token:
         raise RuntimeError("TELEGRAM_BOT_TOKEN is not configured")
-    data = json.dumps(payload).encode("utf-8")
-    req = Request(f"https://api.telegram.org/bot{token}/{method}", data=data,
+    req = Request(f"https://api.telegram.org/bot{token}/{method}",
+                  data=json.dumps(payload).encode("utf-8"),
                   headers={"Content-Type": "application/json"}, method="POST")
     try:
         with urlopen(req, timeout=12) as response:
@@ -230,9 +225,7 @@ def create_stars_invoice():
         link = telegram_api("createInvoiceLink", {
             "title": f'{pack["game_stars"]} игровых звёзд',
             "description": f'Пополнение баланса игры «Самолётик» на {pack["game_stars"]} звёзд',
-            "payload": invoice_payload,
-            "provider_token": "",
-            "currency": "XTR",
+            "payload": invoice_payload, "provider_token": "", "currency": "XTR",
             "prices": [{"label": f'{pack["game_stars"]} игровых звёзд', "amount": pack["price_xtr"]}],
         })
         return jsonify({"ok": True, "invoiceLink": link})
@@ -255,11 +248,14 @@ def claim_stars():
         with get_connection() as conn:
             ensure_schema(conn)
             row = conn.execute("""
+                WITH amount AS (
+                    SELECT stars_balance FROM players WHERE telegram_id = %s FOR UPDATE
+                )
                 UPDATE players SET stars_balance = 0
                 WHERE telegram_id = %s
-                RETURNING stars_balance
-            """, (player["telegram_id"],)).fetchone()
-        return jsonify({"ok": True, "stars": int(row["stars_balance"]) if row else 0})
+                RETURNING (SELECT stars_balance FROM amount) AS claimed_stars
+            """, (player["telegram_id"], player["telegram_id"])).fetchone()
+        return jsonify({"ok": True, "stars": int(row["claimed_stars"]) if row and row["claimed_stars"] else 0})
     except Exception:
         app.logger.exception("Could not claim purchased stars")
         return jsonify({"error": "stars_claim_failed"}), 503
@@ -271,15 +267,12 @@ def telegram_webhook():
     received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
     if not expected_secret or not hmac.compare_digest(expected_secret, received_secret):
         return jsonify({"ok": False}), 403
-
     update = request.get_json(silent=True) or {}
     query = update.get("pre_checkout_query")
     if query:
         query_id = query.get("id", "")
         invoice_payload = query.get("invoice_payload", "")
         user_id = (query.get("from") or {}).get("id")
-        ok = False
-        error_message = "Счёт недействителен. Создайте новый."
         try:
             with get_connection() as conn:
                 ensure_schema(conn)
@@ -290,7 +283,7 @@ def telegram_webhook():
                 ok = bool(invoice and int(invoice["telegram_id"]) == int(user_id))
             telegram_api("answerPreCheckoutQuery", {
                 "pre_checkout_query_id": query_id, "ok": ok,
-                **({} if ok else {"error_message": error_message})
+                **({} if ok else {"error_message": "Счёт недействителен. Создайте новый."})
             })
         except Exception:
             app.logger.exception("Could not validate pre-checkout query")
@@ -328,18 +321,14 @@ def telegram_webhook():
                         ON CONFLICT DO NOTHING RETURNING telegram_payment_charge_id
                     """, (charge_id, invoice_payload, user_id, invoice["game_stars"], total_amount)).fetchone()
                     if inserted:
-                        conn.execute("""
-                            UPDATE players SET stars_balance = stars_balance + %s
-                            WHERE telegram_id = %s
-                        """, (invoice["game_stars"], user_id))
-                        conn.execute("UPDATE star_invoices SET status = 'paid' WHERE payload = %s",
-                                     (invoice_payload,))
+                        conn.execute("UPDATE players SET stars_balance = stars_balance + %s WHERE telegram_id = %s",
+                                     (invoice["game_stars"], user_id))
+                        conn.execute("UPDATE star_invoices SET status = 'paid' WHERE payload = %s", (invoice_payload,))
                 else:
                     app.logger.error("Payment did not match a pending invoice: %s", invoice_payload)
         except Exception:
             app.logger.exception("Could not credit successful Telegram payment")
             return jsonify({"ok": False}), 500
-
     return jsonify({"ok": True})
 
 
