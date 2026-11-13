@@ -202,6 +202,12 @@ function mulberry(a){
   cosmic: { name:'Прозрачный',   price:150, body:'#eef8ff', edge:'#9cc4d8', shade:'#d8eef8', trail:'ghost', crash:'fade',   bonus:'Фазировка: проход сквозь одну трубу (1 раз за уровень)', phase:true }
 };
 
+// Постоянные улучшения самолёта: уровни покупаются за звёзды.
+const UPGRADES = {
+  magnet: {name:'Звёздный магнит', desc:'Притягивает звёздочки', prices:[30,55,85], icon:'🧲'},
+  armor:  {name:'Бронепластина', desc:'Дополнительные шансы пережить столкновение', prices:[80,120,170], icon:'🛡️'}
+};
+
 /* ============ Сохранение и НЕДЕЛЬНЫЙ РЕКОРД ============ */
 let save;
 function load(){
@@ -224,16 +230,38 @@ function load(){
   }
   if (!save.playerName) save.playerName = 'Игрок';
   if (!Array.isArray(save.localLeaderboard)) save.localLeaderboard = [];
+  // Привязываем локальное игровое сохранение к Telegram-профилю Mini App.
+  // Для настоящей межустройственной авторизации сервер должен проверять initData.
   if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user){
-    const un = (tg.initDataUnsafe.user.first_name || '').trim();
-    if (un) save.playerName = un.substring(0, 12);
+    const user = tg.initDataUnsafe.user;
+    const firstName = String(user.first_name || '').trim();
+    const lastName = String(user.last_name || '').trim();
+    const username = String(user.username || '').trim();
+    const userId = user.id != null ? String(user.id) : '';
+    const displayName = [firstName, lastName].filter(Boolean).join(' ').trim();
+    save.telegramUser = {
+      id: userId,
+      username,
+      displayName: displayName || (username ? '@' + username : 'Игрок'),
+      profileUrl: username ? 'https://t.me/' + encodeURIComponent(username) : (userId ? 'tg://user?id=' + encodeURIComponent(userId) : '')
+    };
+    if (displayName) save.playerName = displayName.substring(0, 12);
+    else if (username) save.playerName = username.substring(0, 12);
   }
   if(!save.owned) save.owned = { classic:true, gold:false, diamond:false, cosmic:false };
+  if(!save.upgrades || typeof save.upgrades !== 'object') save.upgrades = {};
+  for (const id of Object.keys(UPGRADES)) save.upgrades[id] = Math.max(0, Math.min(3, Number(save.upgrades[id]) || 0));
+  delete save.upgrades.engine; delete save.upgrades.hull;
   if(!save.accountResetV1){
     save.best = 0;
     save.weeklyBest = 0;
     save.stars = 0;
     save.accountResetV1 = true;
+  }
+  // Одноразовый бонус 500 игровых звёзд для каждого локального сохранения.
+  if (!save.bonus500GrantedV1) {
+    save.stars += 500;
+    save.bonus500GrantedV1 = true;
   }
   if(!SKINS[save.skin]) save.skin = 'classic';
 }
@@ -668,6 +696,9 @@ let phaseT = 0, phaseUsed = false;
 let themeIdx = 0, passLevel = 1, page = 0;
 let luckyUsed = false;
 let leaderboardScroll = 0, leaderboardDrag = null;
+let shopScroll = 0, shopDrag = null, armorUses = 0;
+function shopSideBySide(){ return W >= 700*S; }
+function shopContentHeight(){ return shopSideBySide() ? 92*S + 4*94*S + 24*S : 92*S + 4*94*S + 34*S + 4*82*S; }
 
 
 function haptic(type){ try { tg && tg.HapticFeedback && tg.HapticFeedback.impactOccurred(type); } catch(e){} }
@@ -812,13 +843,13 @@ function startGame(lvl){
   plane.x = Math.min(W*.28, 160*S);
   plane.y = H*.45; plane.vy = 0; plane.angle = 0;
   pipes = []; hazards = []; collectibles = []; pipeCount = 0; hazardTimer = 260; fx = []; spawnTimer = 0; shieldT = 0; shieldUsed = false;
-  phaseT = 0; phaseUsed = false; luckyUsed = false; 
+  phaseT = 0; phaseUsed = false; luckyUsed = false; armorUses = 0; 
   themeIdx = Math.floor(((lvl|0)-1)/2) % THEMES.length;
   initWx();
   state = 'play';
 }
 function flap(){
-  plane.vy = FLAPV; haptic('light');
+  plane.vy = FLAPV * (1 + (save.upgrades?.engine || 0)*0.045); haptic('light');
 }
 function toMenu(){ state = 'menu'; themeIdx = 0; initWx(); }
 function goFull(){
@@ -856,6 +887,23 @@ function buySkin(id){
   }
 }
 
+function buyUpgrade(id){
+  const up = UPGRADES[id];
+  if (!up || !Array.isArray(up.prices)) return;
+  // Нормализуем уровень перед покупкой, чтобы старые/повреждённые сохранения
+  // не блокировали покупку следующего уровня.
+  const level = Math.max(0, Math.min(3, Math.floor(Number(save.upgrades?.[id]) || 0)));
+  if (level >= 3) return;
+  const price = Number(up.prices[level]);
+  const balance = Math.max(0, Number(save.stars) || 0);
+  if (!Number.isFinite(price) || price < 0) return;
+  if (balance >= price){
+    save.stars = balance - price;
+    save.upgrades[id] = level + 1;
+    persist(); haptic('medium');
+  } else haptic('rigid');
+}
+
 function changePlayerName(){
   const nn = prompt(translateText('Ваше имя (до 12 символов):'), save.playerName);
   if (nn && nn.trim()){
@@ -868,6 +916,12 @@ cvs.addEventListener('pointerdown', e => {
   e.preventDefault();
   const r = cvs.getBoundingClientRect();
   const x = e.clientX - r.left, y = e.clientY - r.top;
+  // Надёжная отдельная зона кнопки возврата из магазина: не зависит от прокрутки.
+  if (state === 'shop' && x >= 12*S && x <= 104*S && y >= 26*S && y <= 60*S) {
+    toMenu();
+    haptic('light');
+    return;
+  }
   if (state === 'records') {
     const lx = 12*S, lw = (W - 24*S - 10*S)/2;
     const ly = 90*S + 42*S, lh = Math.max(80*S, H - 28*S - ly);
@@ -878,11 +932,23 @@ cvs.addEventListener('pointerdown', e => {
     }
   }
   for (const b of uiButtons){
-    if (x>=b.x && x<=b.x+b.w && y>=b.y && y<=b.y+b.h){ b.action(); return; }
+    const inShopViewport = state !== 'shop' || (y >= 92*S && y <= H-72*S);
+    if (inShopViewport && x>=b.x && x<=b.x+b.w && y>=b.y && y<=b.y+b.h){ b.action(); return; }
+  }
+  if (state === 'shop' && y >= 92*S && y <= H-72*S){
+    shopDrag = {startY:y, startScroll:shopScroll};
+    try { cvs.setPointerCapture(e.pointerId); } catch(_) {}
+    return;
   }
   if (state === 'play') flap();
 });
 cvs.addEventListener('pointermove', e => {
+  if (shopDrag && state === 'shop'){
+    const r=cvs.getBoundingClientRect(), y=e.clientY-r.top;
+    const viewH=Math.max(100*S,H-72*S-92*S), contentH=shopContentHeight();
+    shopScroll=Math.max(0,Math.min(Math.max(0,contentH-viewH),shopDrag.startScroll+(shopDrag.startY-y)));
+    return;
+  }
   if (!leaderboardDrag || state !== 'records') return;
   const r = cvs.getBoundingClientRect();
   const y = e.clientY - r.top;
@@ -893,9 +959,18 @@ cvs.addEventListener('pointermove', e => {
   leaderboardScroll = Math.max(0, Math.min(maxScroll, leaderboardDrag.startScroll + (leaderboardDrag.startY-y)));
 });
 function stopLeaderboardDrag(){ leaderboardDrag = null; }
-cvs.addEventListener('pointerup', stopLeaderboardDrag);
-cvs.addEventListener('pointercancel', stopLeaderboardDrag);
+function stopShopDrag(){ shopDrag = null; }
+cvs.addEventListener('pointerup', ()=>{ stopLeaderboardDrag(); stopShopDrag(); });
+cvs.addEventListener('pointercancel', ()=>{ stopLeaderboardDrag(); stopShopDrag(); });
 cvs.addEventListener('wheel', e => {
+  if (state === 'shop'){
+    const r=cvs.getBoundingClientRect(), y=e.clientY-r.top;
+    if(y>=92*S && y<=H-72*S){
+      e.preventDefault(); const viewH=Math.max(100*S,H-72*S-92*S), contentH=shopContentHeight();
+      shopScroll=Math.max(0,Math.min(Math.max(0,contentH-viewH),shopScroll+e.deltaY));
+    }
+    return;
+  }
   if (state !== 'records') return;
   const r = cvs.getBoundingClientRect();
   const x = e.clientX-r.left, y = e.clientY-r.top;
@@ -1027,9 +1102,25 @@ function finishGame(win){
   // Локальный рейтинг на этом устройстве: сохраняем лучший результат каждого имени.
   if (!Array.isArray(save.localLeaderboard)) save.localLeaderboard = [];
   const rankName = String(save.playerName || 'Игрок').trim().slice(0, 12) || 'Игрок';
-  const rankEntry = save.localLeaderboard.find(p => p.name === rankName);
-  if (rankEntry) rankEntry.score = Math.max(Number(rankEntry.score) || 0, score);
-  else save.localLeaderboard.push({name: rankName, score});
+  const telegramId = save.telegramUser && save.telegramUser.id ? String(save.telegramUser.id) : '';
+  const rankEntry = save.localLeaderboard.find(p => telegramId ? String(p.telegramId || '') === telegramId : (!p.telegramId && p.name === rankName));
+  if (rankEntry) {
+    rankEntry.name = rankName;
+    rankEntry.score = Math.max(Number(rankEntry.score) || 0, score);
+    if (save.telegramUser) {
+      rankEntry.telegramId = telegramId;
+      rankEntry.telegramUsername = save.telegramUser.username || '';
+      rankEntry.telegramProfileUrl = save.telegramUser.profileUrl || '';
+    }
+  } else {
+    save.localLeaderboard.push({
+      name: rankName,
+      score,
+      telegramId,
+      telegramUsername: save.telegramUser ? (save.telegramUser.username || '') : '',
+      telegramProfileUrl: save.telegramUser ? (save.telegramUser.profileUrl || '') : ''
+    });
+  }
   save.localLeaderboard.sort((a,b) => (Number(b.score)||0) - (Number(a.score)||0));
   save.localLeaderboard = save.localLeaderboard.slice(0, 100);
   persist();
@@ -1065,6 +1156,13 @@ function finishGame(win){
     }
   }
 
+  if (armorUses < (save.upgrades?.armor || 0)){
+    armorUses++;
+    plane.vy = FLAPV * (1 + (save.upgrades?.engine || 0)*0.045);
+    plane.y = Math.max(PLANE_R+8*S, Math.min(H-GROUND_H-PLANE_R-8*S, plane.y));
+    phaseT = 34; spawnShield(); haptic('medium');
+    return;
+  }
   finishGame(false);
 }
 
@@ -1094,7 +1192,7 @@ function step(k){
 
   if (state !== 'play') return;
 
-  plane.vy += GRAV*k;
+  plane.vy += GRAV * (1 - (save.upgrades?.hull || 0)*0.055) * k;
   plane.y += plane.vy*k;
   plane.angle = Math.max(-.5, Math.min(1.2, plane.vy/(10*S)*.9));
 
@@ -1123,10 +1221,18 @@ function step(k){
     const c = collectibles[i];
     c.x -= speed*k;
     c.spin += .07*k;
-    const dx = plane.x-c.x, dy = plane.y-c.y;
+    let dx = plane.x-c.x, dy = plane.y-c.y;
+    const magnetLevel = save.upgrades?.magnet || 0;
+    if (magnetLevel > 0 && Math.abs(dx) < (70 + magnetLevel*28)*S && Math.abs(dy) < (55 + magnetLevel*20)*S){
+      const pull = (0.035 + magnetLevel*0.018)*k;
+      c.x += dx*pull; c.y += dy*pull; dx = plane.x-c.x; dy = plane.y-c.y;
+    }
     if (dx*dx+dy*dy < (PLANE_R+c.r)* (PLANE_R+c.r)){
-      // Звёздочка даёт +5 к игровому счёту, но не учитывается в валюте магазина.
-      addScore(5, false);
+      // Магнит усиливает очки за собранную звёздочку: ур. 1 = x1,
+      // ур. 2 = x1.5, ур. 3 = x2. Дробный результат округляем до целого.
+      const magnetMultiplier = magnetLevel >= 3 ? 2 : magnetLevel === 2 ? 1.5 : 1;
+      const collectiblePoints = Math.round(5 * magnetMultiplier);
+      addScore(collectiblePoints, false);
       haptic('medium');
       for(let n=0;n<8;n++) pushFx({x:c.x,y:c.y,vx:(Math.random()-.5)*3*S,vy:(Math.random()-.5)*3*S,life:18,max:18,type:'star4',r:3*S,col:'255,220,70'});
       collectibles.splice(i,1);
@@ -1254,8 +1360,83 @@ function drawSky(){
     const sun=ctx.createRadialGradient(sx-r*.3,sy-r*.3,1,sx,sy,r);sun.addColorStop(0,'#fff9e7');sun.addColorStop(1,'rgba(255,224,166,.72)');ctx.fillStyle=sun;ctx.beginPath();ctx.arc(sx,sy,r,0,Math.PI*2);ctx.fill();
   }
   const haze=ctx.createLinearGradient(0,H*.35,0,H*.86);haze.addColorStop(0,'rgba(255,255,255,0)');haze.addColorStop(1,'rgba(255,255,255,.17)');ctx.fillStyle=haze;ctx.fillRect(0,H*.35,W,H*.51);
-  for(const c of clouds){const cy=c.y*H*.5+20*S,sz=c.sc*S;ctx.globalAlpha=scene==='Космос'?.12:.72;ctx.drawImage(cloudSpr,c.x,cy-40*S,200*S*sz,120*S*sz);}
+  const weather = weatherForLevel(curLevel, scene);
+  for(const c of clouds){
+    const cy=c.y*H*.5+20*S,sz=c.sc*S;
+    ctx.globalAlpha=scene==='Космос'?.12:(weather==='storm'||weather==='rain'||weather==='snow'||weather==='blizzard'?.86:.72);
+    if(weather==='storm'||weather==='rain'||weather==='blizzard') ctx.filter='brightness(.72)';
+    else if(weather==='snow') ctx.filter='brightness(.9)';
+    ctx.drawImage(cloudSpr,c.x,cy-40*S,200*S*sz,120*S*sz);
+    ctx.filter='none';
+  }
   ctx.globalAlpha=1;
+  drawWeather(weather);
+}
+
+// Погода меняется вместе с уровнями и их окружением
+function weatherForLevel(level, scene){
+  const variant = Math.floor((Math.max(1,level)-1)/2);
+  if(scene==='Космос') return 'stars';
+  if(scene==='Вулкан') return 'ash';
+  if(scene==='Пустыня') return variant%3===0 ? 'sandstorm' : 'dry';
+  if(scene==='Льды') return variant%3===0 ? 'blizzard' : 'snow';
+  if(scene==='Осень') return variant%3===0 ? 'rain' : 'leaves';
+  if(scene==='Ночь'||scene==='Неон') return variant%3===0 ? 'storm' : 'rain';
+  if(scene==='Океан') return variant%3===0 ? 'storm' : 'rain';
+  if(scene==='Горы') return variant%3===0 ? 'snow' : (variant%3===1 ? 'storm' : 'clear');
+  if(scene==='Лес') return variant%3===0 ? 'storm' : (variant%3===1 ? 'rain' : 'clear');
+  return 'clear';
+}
+
+function drawWeather(type){
+  if(type==='clear'||type==='dry') return;
+  const count = Math.max(24,Math.floor(W/(type==='snow'||type==='blizzard'?13:9)));
+  ctx.save();
+  if(type==='rain'||type==='storm'||type==='blizzard'||type==='sandstorm'){
+    ctx.lineWidth=Math.max(1,1.5*S);
+    for(let i=0;i<count;i++){
+      const seed=i*127.1+curLevel*19.7;
+      const x=((seed*31.7-t*(type==='sandstorm'?2.1:8.5)*S)%(W+80*S)+W+80*S)%(W+80*S)-40*S;
+      const y=((seed*17.3+t*(type==='sandstorm'?2.8:15)*S)%(H+60*S)+H+60*S)%(H+60*S)-30*S;
+      ctx.strokeStyle=type==='sandstorm'?'rgba(196,143,75,.32)':(type==='blizzard'?'rgba(225,248,255,.68)':'rgba(205,229,255,.48)');
+      ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-(type==='sandstorm'?5:4)*S,y+(type==='sandstorm'?2:12)*S);ctx.stroke();
+    }
+  }
+  if(type==='snow'||type==='blizzard'){
+    for(let i=0;i<count;i++){
+      const seed=i*91.7+curLevel*13.1;
+      const x=((seed*23.9+Math.sin(t*.025+i)*12*S)%(W+20*S)+W+20*S)%(W+20*S)-10*S;
+      const y=((seed*11.7+t*(type==='blizzard'?2.3:1.1)*S)%(H+20*S)+H+20*S)%(H+20*S)-10*S;
+      ctx.fillStyle='rgba(255,255,255,.78)';ctx.beginPath();ctx.arc(x,y,(1.2+(i%3)*.55)*S,0,Math.PI*2);ctx.fill();
+    }
+  }
+  if(type==='ash'||type==='leaves'){
+    for(let i=0;i<count;i++){
+      const seed=i*73.3+curLevel*7.1;
+      const x=((seed*29-t*2.2*S)%(W+30*S)+W+30*S)%(W+30*S)-15*S;
+      const y=((seed*19+t*2.5*S)%(H+30*S)+H+30*S)%(H+30*S)-15*S;
+      ctx.save();ctx.translate(x,y);ctx.rotate(t*.035+i);ctx.fillStyle=type==='ash'?'rgba(255,135,65,.65)':'rgba(198,111,45,.65)';ctx.fillRect(-2*S,-1*S,4*S,2*S);ctx.restore();
+    }
+  }
+  if(type==='stars'){
+    for(let i=0;i<34;i++){
+      const x=(i*97.3+curLevel*17)%W, y=(i*53.7)% (H*.72);
+      ctx.globalAlpha=.25+.5*(.5+.5*Math.sin(t*.04+i));ctx.fillStyle='#dceaff';ctx.beginPath();ctx.arc(x,y,(i%3+1)*.6*S,0,Math.PI*2);ctx.fill();
+    }
+  }
+  if(type==='storm'){
+    // Короткие вспышки молнии через равные промежутки времени
+    const pulse=((Math.floor(t/95)+curLevel*3)%11);
+    if(pulse===0||pulse===1){
+      ctx.fillStyle='rgba(225,239,255,'+(pulse===0?'.14':'.07')+')';ctx.fillRect(0,0,W,H);
+      if(pulse===0){
+        const lx=W*(.2+((curLevel*37)%60)/100), ly=H*.16;
+        ctx.strokeStyle='rgba(245,250,255,.95)';ctx.lineWidth=3*S;ctx.shadowColor='#dcecff';ctx.shadowBlur=18*S;
+        ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(lx-12*S,ly+28*S);ctx.lineTo(lx+3*S,ly+31*S);ctx.lineTo(lx-17*S,ly+66*S);ctx.stroke();
+      }
+    }
+  }
+  ctx.restore();ctx.globalAlpha=1;
 }
 
 function drawBgLayers(){
@@ -1604,6 +1785,13 @@ function drawMenu(){
   ctx.shadowBlur = Math.max(3, 7*S);
   ctx.font = '800 ' + Math.round(Math.max(13, Math.min(18*S, H*.032))) + 'px Arial, sans-serif';
   ctx.fillText('Рекорд: ' + save.best, W/2, Math.max(18, y0-9*S));
+  // Показываем, какой Telegram-профиль привязан к этому сохранению.
+  if (save.telegramUser && (save.telegramUser.username || save.telegramUser.displayName)) {
+    ctx.font = '600 ' + Math.round(Math.max(10, Math.min(13*S, H*.023))) + 'px Arial, sans-serif';
+    ctx.fillStyle = '#d9f2ff';
+    const tgLabel = save.telegramUser.username ? 'Telegram: @' + save.telegramUser.username : 'Telegram: ' + save.telegramUser.displayName;
+    ctx.fillText(tgLabel, W/2, Math.max(12, y0-27*S));
+  }
   ctx.shadowBlur = 0;
 
   button(x, y0,                    bw, bh, 'Начать игру',  ()=>showBriefing(1), '#f5a623');
@@ -1738,42 +1926,82 @@ function drawShop(){
   ctx.fillText('⭐ ' + save.stars, W/2, 78*S);
   button(12*S, 26*S, 92*S, 34*S, '← Меню', toMenu, '#5b7a8c');
 
-  const w = Math.min(380*S, W - 24*S), x = (W - w)/2;
-  const rowH = 84*S;
-  let y = 96*S;
-  const btnW = Math.min(112*S, w*.32), btnH = 40*S;
+  const menuButtonCount = uiButtons.length;
+  const side = shopSideBySide();
+  const viewTop = 92*S, viewBottom = H - 72*S, viewH = Math.max(100*S, viewBottom-viewTop);
+  const gap = 16*S;
+  const colW = side ? (W - 36*S - gap)/2 : Math.min(380*S, W - 24*S);
+  const leftX = side ? 12*S : (W-colW)/2;
+  const rightX = side ? leftX+colW+gap : leftX;
+  const contentH = shopContentHeight();
+  shopScroll = Math.max(0, Math.min(shopScroll, Math.max(0, contentH-viewH)));
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, viewTop, W, viewH); ctx.clip();
+  ctx.translate(0, -shopScroll);
 
+  // Левая колонка — самолётики в магазине.
+  let y = 100*S;
+  if (side) {
+    ctx.fillStyle='#ffe08a'; ctx.font='900 '+Math.round(17*S)+'px Arial, sans-serif';
+    ctx.textAlign='center'; ctx.fillText('САМОЛЁТИКИ',leftX+colW/2,y+14*S);
+    y += 24*S;
+  }
+  const rowH = 84*S;
   for (const id of ['classic','gold','diamond','cosmic']){
     const sk = SKINS[id];
     const owned = save.owned[id], equipped = save.skin === id;
-    panel(x, y, w, rowH);
-
+    panel(leftX, y, colW, rowH);
     const spr = planeSprite(id);
-    ctx.drawImage(spr, x+8*S, y+rowH/2-26*S, 52*S, 52*S);
-
-    const tx = x + 66*S;
-    const tw = w - 66*S - btnW - 20*S;
-    ctx.fillStyle = '#0b4a6f';
-    ctx.font = '700 ' + Math.round(Math.max(16*S,14)) + 'px Arial, sans-serif';
-    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-    ctx.fillText(sk.name, tx, y + 30*S, tw);
-
-    ctx.fillStyle = '#5b7a8c';
-    ctx.font = Math.round(Math.max(12*S,10)) + 'px Arial, sans-serif';
+    ctx.drawImage(spr, leftX+8*S, y+rowH/2-26*S, 52*S, 52*S);
+    const tx = leftX + 66*S;
+    const btnW = Math.min(112*S, colW*.32), btnH = 40*S;
+    const tw = colW - 66*S - btnW - 20*S;
+    ctx.fillStyle = '#0b4a6f'; ctx.font = '700 ' + Math.round(Math.max(16*S,14)) + 'px Arial, sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillText(sk.name, tx, y + 30*S, tw);
+    ctx.fillStyle = '#5b7a8c'; ctx.font = Math.round(Math.max(12*S,10)) + 'px Arial, sans-serif';
     wrapText(translateText(sk.bonus), tx, y + 50*S, tw, Math.round(15*S));
-
-    const bx = x + w - btnW - 10*S, by = y + (rowH - btnH)/2;
-    if (equipped){
-      button(bx, by, btnW, btnH, 'Выбран', null, '#f5a623');
-    } else if (owned){
-      button(bx, by, btnW, btnH, 'Выбрать', (i=>()=>buySkin(i))(id), '#1f8fc9');
-    } else {
-      const afford = save.stars >= sk.price;
-      // Цена — полноценная кнопка в общем стиле; недоступная покупка приглушена.
-      button(bx, by, btnW, btnH, String(sk.price) + ' ⭐',
-        (i=>()=>buySkin(i))(id), afford ? '#1f8fc9' : '#5b6474', '#ffffff');
-    }
+    const bx = leftX + colW - btnW - 10*S, by = y + (rowH - btnH)/2;
+    if (equipped) button(bx, by, btnW, btnH, 'Выбран', null, '#f5a623');
+    else if (owned) button(bx, by, btnW, btnH, 'Выбрать', (i=>()=>buySkin(i))(id), '#1f8fc9');
+    else { const afford = save.stars >= sk.price; button(bx, by, btnW, btnH, String(sk.price) + ' ⭐', (i=>()=>buySkin(i))(id), afford ? '#1f8fc9' : '#5b6474', '#ffffff'); }
     y += rowH + 10*S;
+  }
+
+  // Улучшения — отдельная колонка справа на широком экране, ниже магазина на телефоне.
+  const upgradeX = side ? rightX : leftX;
+  const upgradeW = colW;
+  let uy = side ? 100*S : y + 4*S;
+  ctx.fillStyle = '#ffe08a'; ctx.font = '900 ' + Math.round(17*S) + 'px Arial, sans-serif';
+  ctx.textAlign = 'center'; ctx.fillText('УЛУЧШЕНИЯ САМОЛЁТИКА', upgradeX+upgradeW/2, uy+18*S);
+  uy += 30*S;
+  for (const id of Object.keys(UPGRADES)){
+    const up = UPGRADES[id], level = save.upgrades[id] || 0;
+    const h = 74*S, btnW = Math.min(112*S, upgradeW*.32), btnH = 36*S;
+    panel(upgradeX, uy, upgradeW, h);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.font = Math.round(23*S)+'px Arial, sans-serif'; ctx.fillText(up.icon, upgradeX+10*S, uy+30*S);
+    const tx=upgradeX+48*S, tw=upgradeW-48*S-btnW-18*S;
+    ctx.fillStyle='#0b4a6f'; ctx.font='800 '+Math.round(13*S)+'px Arial, sans-serif';
+    ctx.fillText(up.name,tx,uy+23*S,tw);
+    ctx.fillStyle='#5b7a8c'; ctx.font=Math.round(10.5*S)+'px Arial, sans-serif';
+    const upgradeDescription = id === 'armor'
+      ? (level > 0 ? 'Доп. шансы за уровень: '+level : 'Купите, чтобы получить шанс')
+      : (level === 0 ? 'Притягивает звёздочки' : level === 1 ? 'Притяжение + 5 очков за звезду' : level === 2 ? 'Притяжение + 8 очков (x1,5)' : 'Притяжение + 10 очков (x2)');
+    ctx.fillText(upgradeDescription,tx,uy+40*S,tw);
+    ctx.fillStyle='#d18a12'; ctx.font='700 '+Math.round(11*S)+'px Arial, sans-serif';
+    ctx.fillText('Уровень '+level+'/3',tx,uy+59*S,tw);
+    const bx=upgradeX+upgradeW-btnW-9*S, by=uy+(h-btnH)/2;
+    if(level>=3) button(bx,by,btnW,btnH,'Максимум',null,'#f5a623');
+    else { const price=up.prices[level]; button(bx,by,btnW,btnH,price+' ⭐',()=>buyUpgrade(id),save.stars>=price?'#1f8fc9':'#5b6474','#ffffff'); }
+    uy += h+8*S;
+  }
+  ctx.restore();
+  for (let bi=menuButtonCount; bi<uiButtons.length; bi++){ uiButtons[bi].y -= shopScroll; }
+  if (contentH > viewH){
+    const trackX=W-5*S, trackY=viewTop+4*S, trackH=viewH-8*S;
+    ctx.save(); ctx.fillStyle='rgba(5,35,75,.25)'; roundRect(trackX,trackY,2*S,trackH,2*S); ctx.fill();
+    const thumbH=Math.max(24*S,trackH*viewH/contentH), thumbY=trackY+(trackH-thumbH)*(shopScroll/(contentH-viewH));
+    ctx.fillStyle='#ffe08a'; roundRect(trackX,thumbY,2*S,thumbH,2*S); ctx.fill(); ctx.restore();
   }
 }
 function wrapText(text, x, y, maxW, lineH){
@@ -1949,10 +2177,11 @@ function drawRecords(){
   ctx.fillText(translateText('Локальный рейтинг этого устройства'), leftX+colW/2, H-8*S, colW-8*S);
   ctx.restore();
 
-  // Правая таблица — достижения игрока.
+  // Правая таблица — личные достижения: берутся только из локального сохранения текущего игрока.
+  // В список рекордов передаются только имя и очки; достижения других игроков здесь не отображаются.
   card(rightX, topY, colW, headerH, true);
   ctx.save(); titleStyle();
-  ctx.fillText('ДОСТИЖЕНИЯ ИГРОКА', rightX+colW/2, topY+headerH/2, colW-8*S);
+  ctx.fillText('МОИ ДОСТИЖЕНИЯ', rightX+colW/2, topY+headerH/2, colW-8*S);
   ctx.restore();
 
   const rows = [
