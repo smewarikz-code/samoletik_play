@@ -210,6 +210,25 @@ const UPGRADES = {
 
 /* ============ Сохранение и НЕДЕЛЬНЫЙ РЕКОРД ============ */
 let save;
+function getSaturdayResetKey(date = new Date()){
+  const saturday = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  saturday.setHours(0,0,0,0);
+  const daysSinceSaturday = (saturday.getDay() + 1) % 7;
+  saturday.setDate(saturday.getDate() - daysSinceSaturday);
+  const y = saturday.getFullYear();
+  const m = String(saturday.getMonth()+1).padStart(2,'0');
+  const d = String(saturday.getDate()).padStart(2,'0');
+  return `${y}-${m}-${d}`;
+}
+function applySaturdayReset(resetKey = getSaturdayResetKey()){
+  save.saturdayResetKey = resetKey;
+  save.weeklyBest = 0;
+  // Каждую субботу уровни улучшений снова становятся нулевыми.
+  save.upgrades = { magnet: 0, armor: 0 };
+  // Локальная таблица топа содержит результаты только текущей игровой недели.
+  save.localLeaderboard = [];
+  persist();
+}
 function load(){
   try { save = JSON.parse(localStorage.getItem('tgPlaneSave3')); } catch(e){ save = null; }
   if(!save || typeof save !== 'object') save = {};
@@ -222,11 +241,13 @@ function load(){
   save.games     = save.games     || 0;
   save.maxLevel  = Math.max(1, Math.min(MAX_LEVEL, Math.round(save.maxLevel || 1)));
 
-  const now = new Date();
-  const currentWeek = Math.floor(now.getTime() / (1000*60*60*24*7));
-  if (!save.weeklyWeek || save.weeklyWeek !== currentWeek){
-    save.weeklyWeek = currentWeek;
-    save.weeklyBest = 0;
+  // Неделя игры начинается в субботу по местному времени устройства.
+  const currentResetKey = getSaturdayResetKey();
+  if (!save.saturdayResetKey) {
+    // При первом запуске новой версии сохраняем текущие покупки до ближайшей субботы.
+    save.saturdayResetKey = currentResetKey;
+  } else if (save.saturdayResetKey !== currentResetKey) {
+    applySaturdayReset(currentResetKey);
   }
   if (!save.playerName) save.playerName = 'Игрок';
   if (!Array.isArray(save.localLeaderboard)) save.localLeaderboard = [];
@@ -912,6 +933,27 @@ function changePlayerName(){
   }
 }
 
+// Открывает Telegram-профиль игрока из таблицы рекордов.
+function openLeaderboardTelegramProfile(item){
+  if (!item) return;
+  const username = String(item.telegramUsername || '').trim().replace(/^@/, '');
+  const telegramId = String(item.telegramId || '').trim();
+  if (username){
+    const url = 'https://t.me/' + encodeURIComponent(username);
+    if (tg && typeof tg.openTelegramLink === 'function') tg.openTelegramLink(url);
+    else if (tg && typeof tg.openLink === 'function') tg.openLink(url);
+    else window.open(url, '_blank', 'noopener');
+    return;
+  }
+  if (telegramId){
+    // Числовой ID можно открыть через Telegram deep link, если клиент
+    // разрешает такой переход и настройки приватности пользователя это допускают.
+    try { window.location.href = 'tg://user?id=' + encodeURIComponent(telegramId); } catch (_) {}
+    return;
+  }
+  haptic('rigid');
+}
+
 cvs.addEventListener('pointerdown', e => {
   e.preventDefault();
   const r = cvs.getBoundingClientRect();
@@ -926,7 +968,7 @@ cvs.addEventListener('pointerdown', e => {
     const lx = 12*S, lw = (W - 24*S - 10*S)/2;
     const ly = 90*S + 42*S, lh = Math.max(80*S, H - 28*S - ly);
     if (x >= lx && x <= lx+lw && y >= ly && y <= ly+lh) {
-      leaderboardDrag = {startY:y, startScroll:leaderboardScroll, x, y};
+      leaderboardDrag = {startY:y, startX:x, startScroll:leaderboardScroll, x, y};
       try { cvs.setPointerCapture(e.pointerId); } catch(_) {}
       return;
     }
@@ -960,7 +1002,23 @@ cvs.addEventListener('pointermove', e => {
 });
 function stopLeaderboardDrag(){ leaderboardDrag = null; }
 function stopShopDrag(){ shopDrag = null; }
-cvs.addEventListener('pointerup', ()=>{ stopLeaderboardDrag(); stopShopDrag(); });
+cvs.addEventListener('pointerup', e=>{
+  if (leaderboardDrag && state === 'records'){
+    const r = cvs.getBoundingClientRect();
+    const x = e.clientX-r.left, y = e.clientY-r.top;
+    const moved = Math.hypot(x-leaderboardDrag.startX, y-leaderboardDrag.startY);
+    const lx = 12*S, lw = (W-24*S-10*S)/2;
+    const rowsTop = 90*S + 42*S + 34*S;
+    const listBottom = H-28*S;
+    if (moved < 8*S && x >= lx && x <= lx+lw && y >= rowsTop && y <= listBottom){
+      const rowH = 34*S;
+      const index = Math.floor((y-rowsTop+leaderboardScroll)/rowH);
+      const entries = Array.isArray(save.localLeaderboard) ? save.localLeaderboard.slice().sort((a,b)=>(Number(b.score)||0)-(Number(a.score)||0)) : [];
+      if (index >= 0 && index < entries.length) openLeaderboardTelegramProfile(entries[index]);
+    }
+  }
+  stopLeaderboardDrag(); stopShopDrag();
+});
 cvs.addEventListener('pointercancel', ()=>{ stopLeaderboardDrag(); stopShopDrag(); });
 cvs.addEventListener('wheel', e => {
   if (state === 'shop'){
@@ -1581,7 +1639,7 @@ const LANG_TEXT = {
   en: {
     'Самолётик: Эра приключений':'Little Plane: Age of Adventures',
     'Рекорд: ':'Record: ','Начать игру':'Start game','Выбор уровня':'Choose level',
-    'Магазин':'Shop','Рекорды':'Records','Пополнить звёзды':'Get stars',
+    'Магазин':'Shop','Рейтинг':'Leaderboard','Пополнить звёзды':'Get stars',
     'Ур. ':'Lv. ','Пауза':'Paused','Продолжить':'Resume','В меню':'Main menu',
     'Уровень ':'Level ',' пройден!':' completed!','Очки: ':'Score: ',
     'Упс!':'Oops!','Играть ещё':'Play again','Победа! 🏆':'Victory! 🏆',
@@ -1597,7 +1655,7 @@ const LANG_TEXT = {
   es: {
     'Самолётик: Эра приключений':'Avioncito: Era de aventuras',
     'Рекорд: ':'Récord: ','Начать игру':'Jugar','Выбор уровня':'Elegir nivel',
-    'Магазин':'Tienda','Рекорды':'Récords','Пополнить звёзды':'Comprar estrellas',
+    'Магазин':'Tienda','Рейтинг':'Clasificación','Пополнить звёзды':'Comprar estrellas',
     'Ур. ':'Niv. ','Пауза':'Pausa','Продолжить':'Continuar','В меню':'Menú',
     'Уровень ':'Nivel ',' пройден!':' completado!','Очки: ':'Puntos: ',
     'Упс!':'¡Ups!','Играть ещё':'Jugar otra vez','Победа! 🏆':'¡Victoria! 🏆',
@@ -1613,7 +1671,7 @@ const LANG_TEXT = {
   it: {
     'Самолётик: Эра приключений':'Aeroplanino: Era di avventure',
     'Рекорд: ':'Record: ','Начать игру':'Gioca','Выбор уровня':'Scegli livello',
-    'Магазин':'Negozio','Рекорды':'Record','Пополнить звёзды':'Acquista stelle',
+    'Магазин':'Negozio','Рейтинг':'Classifica','Пополнить звёзды':'Acquista stelle',
     'Ур. ':'Liv. ','Пауза':'Pausa','Продолжить':'Continua','В меню':'Menu',
     'Уровень ':'Livello ',' пройден!':' completato!','Очки: ':'Punti: ',
     'Упс!':'Ops!','Играть ещё':'Gioca ancora','Победа! 🏆':'Vittoria! 🏆',
@@ -1629,7 +1687,7 @@ const LANG_TEXT = {
   de: {
     'Самолётик: Эра приключений':'Kleines Flugzeug: Abenteuerzeit',
     'Рекорд: ':'Rekord: ','Начать игру':'Spiel starten','Выбор уровня':'Level wählen',
-    'Магазин':'Shop','Рекорды':'Bestenliste','Пополнить звёзды':'Sterne aufladen',
+    'Магазин':'Shop','Рейтинг':'Rangliste','Пополнить звёзды':'Sterne aufladen',
     'Ур. ':'Lvl. ','Пауза':'Pause','Продолжить':'Weiter','В меню':'Hauptmenü',
     'Уровень ':'Level ',' пройден!':' geschafft!','Очки: ':'Punkte: ',
     'Упс!':'Hoppla!','Играть ещё':'Nochmal spielen','Победа! 🏆':'Gewonnen! 🏆',
@@ -1797,7 +1855,7 @@ function drawMenu(){
   button(x, y0,                    bw, bh, 'Начать игру',  ()=>showBriefing(1), '#f5a623');
   button(x, y0 + (bh+gap),         bw, bh, 'Выбор уровня', ()=>{ state='levels'; page=Math.max(0, Math.floor((save.maxLevel-1)/20)); }, '#1f8fc9');
   button(x, y0 + (bh+gap)*2,       bw, bh, 'Магазин',      ()=>{ state='shop'; }, '#1f8fc9');
-  button(x, y0 + (bh+gap)*3,       bw, bh, 'Рекорды',      ()=>{ state='records'; }, '#1f8fc9');
+  button(x, y0 + (bh+gap)*3,       bw, bh, 'Рейтинг',      ()=>{ state='records'; }, '#1f8fc9');
   button(x, y0 + (bh+gap)*4,       bw, bh, 'Пополнить звёзды', ()=>{ state='topup'; }, '#f5a623');
   const fs = Math.max(27, Math.min(34*S, 42, W*.11));
   button(W - fs - 10, 10, fs, fs, '⛶', goFull, 'rgba(10,50,80,.72)');
@@ -2052,8 +2110,8 @@ function drawRecords(){
   ctx.fillStyle = '#ffd34d';
   ctx.font = '900 ' + Math.round(Math.min(30*S,26)) + 'px Arial, sans-serif';
   ctx.lineJoin = 'round'; ctx.lineWidth = 3*S; ctx.strokeStyle = '#713b05';
-  ctx.strokeText('Рекорды', W/2, 52*S);
-  ctx.fillText('Рекорды', W/2, 52*S);
+  ctx.strokeText(translateText('Рейтинг'), W/2, 52*S);
+  ctx.fillText(translateText('Рейтинг'), W/2, 52*S);
   ctx.restore();
   button(12*S, 26*S, 92*S, 34*S, '← Меню', toMenu, '#1f8fc9');
 
@@ -2095,10 +2153,12 @@ function drawRecords(){
   ctx.font = '800 ' + Math.round(Math.max(10*S, 9)) + 'px Arial, sans-serif';
   const rankCol = leftX + 18*S;
   const nameColX = leftX + 42*S;
+  const telegramColX = leftX + colW*.62;
   const scoreColX = leftX + colW - 12*S;
   ctx.textAlign = 'left'; ctx.fillStyle = '#ffe08a';
   ctx.fillText('№', rankCol, listY+15*S);
-  ctx.fillText(translateText('ИГРОК'), nameColX, listY+15*S, colW*.48);
+  ctx.fillText(translateText('ИГРОК'), nameColX, listY+15*S, Math.max(24*S, telegramColX-nameColX-7*S));
+  ctx.fillText('TELEGRAM', telegramColX, listY+15*S, Math.max(24*S, scoreColX-telegramColX-7*S));
   ctx.textAlign = 'right'; ctx.fillText(translateText('ОЧКИ'), scoreColX, listY+15*S);
   ctx.strokeStyle = 'rgba(255,211,77,.65)'; ctx.lineWidth = 1*S;
   ctx.beginPath(); ctx.moveTo(leftX+8*S, listY+29*S); ctx.lineTo(leftX+colW-8*S, listY+29*S); ctx.stroke();
@@ -2150,13 +2210,29 @@ function drawRecords(){
     let nm = String(item.name || 'Игрок');
     ctx.textAlign = 'left'; ctx.fillStyle = '#ffffff';
     ctx.font = '800 ' + Math.round(Math.max(10*S, 9)) + 'px Arial, sans-serif';
-    const nameMaxW = Math.max(12*S, scoreColX - nameColX - 12*S);
+    const nameMaxW = Math.max(12*S, telegramColX - nameColX - 8*S);
     while (nm.length > 1 && ctx.measureText(nm).width > nameMaxW) nm = nm.slice(0,-1);
     if (nm !== String(item.name || 'Игрок')) {
       while (nm.length > 1 && ctx.measureText(nm+'…').width > nameMaxW) nm = nm.slice(0,-1);
       nm += '…';
     }
     ctx.fillText(nm, nameColX, yy+leaderboardRowH/2, nameMaxW);
+
+    // Отдельная колонка Telegram: username открывается как t.me/username,
+    // а при его отсутствии показываем Telegram ID (переход зависит от клиента Telegram).
+    const tgName = String(item.telegramUsername || '').trim().replace(/^@/, '');
+    const tgId = String(item.telegramId || '').trim();
+    let tgLabel = tgName ? '@' + tgName : (tgId ? 'ID ' + tgId : '—');
+    const tgMaxW = Math.max(12*S, scoreColX - telegramColX - 8*S);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = (tgName || tgId) ? '#76dcff' : 'rgba(210,230,245,.55)';
+    ctx.font = '700 ' + Math.round(Math.max(8*S, 7)) + 'px Arial, sans-serif';
+    while (tgLabel.length > 1 && ctx.measureText(tgLabel).width > tgMaxW) tgLabel = tgLabel.slice(0,-1);
+    if (tgLabel !== (tgName ? '@' + tgName : (tgId ? 'ID ' + tgId : '—')) && tgLabel !== '—') {
+      while (tgLabel.length > 1 && ctx.measureText(tgLabel+'…').width > tgMaxW) tgLabel = tgLabel.slice(0,-1);
+      tgLabel += '…';
+    }
+    ctx.fillText(tgLabel, telegramColX, yy+leaderboardRowH/2, tgMaxW);
     ctx.textAlign = 'right'; ctx.fillStyle = '#ffd34d';
     ctx.font = '900 ' + Math.round(Math.max(11*S, 10)) + 'px Arial, sans-serif';
     ctx.fillText(String(Number(item.score)||0), scoreColX, yy+leaderboardRowH/2, colW*.25);
@@ -2172,8 +2248,11 @@ function drawRecords(){
     ctx.fillStyle = '#ffd34d'; roundRect(trackX, thumbY, 2*S, thumbH, 1*S); ctx.fill(); ctx.restore();
   }
   ctx.save();
+  ctx.font = Math.round(Math.max(7*S, 6)) + 'px Arial, sans-serif';
+  ctx.fillStyle = '#ffe08a'; ctx.textAlign = 'center';
+  ctx.fillText('Каждую субботу: сброс недельного рекорда, топа и уровней улучшений', leftX+colW/2, H-19*S, colW-8*S);
   ctx.font = Math.round(Math.max(8*S, 7)) + 'px Arial, sans-serif';
-  ctx.fillStyle = '#c7eaff'; ctx.textAlign = 'center';
+  ctx.fillStyle = '#c7eaff';
   ctx.fillText(translateText('Локальный рейтинг этого устройства'), leftX+colW/2, H-8*S, colW-8*S);
   ctx.restore();
 
@@ -2186,22 +2265,23 @@ function drawRecords(){
 
   const rows = [
     ['Лучший счёт', save.best],
+    ['Рекорд недели', save.weeklyBest || 0],
     ['Открыто уровней', save.maxLevel + ' / ' + MAX_LEVEL],
     ['Игр сыграно', save.games],
     ['Звёзды', '⭐ ' + save.stars],
     ['Самолётик', SKINS[save.skin].name]
   ];
-  const rowH = 54*S, rowGap = 8*S, startY = topY + headerH + 10*S;
+  const rowH = 48*S, rowGap = 6*S, startY = topY + headerH + 8*S;
   for (let i=0; i<rows.length; i++) {
     const yy = startY + i*(rowH+rowGap);
     card(rightX, yy, colW, rowH, false);
     ctx.save(); ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
     ctx.fillStyle = '#e5f4ff';
     ctx.font = '800 ' + Math.round(Math.max(10*S, 9)) + 'px Arial, sans-serif';
-    ctx.fillText(rows[i][0], rightX+colW/2, yy+17*S, colW-12*S);
+    ctx.fillText(rows[i][0], rightX+colW/2, yy+15*S, colW-12*S);
     ctx.fillStyle = '#ffd34d';
     ctx.font = '900 ' + Math.round(Math.max(13*S, 11)) + 'px Arial, sans-serif';
-    ctx.fillText(String(rows[i][1]), rightX+colW/2, yy+39*S, colW-12*S);
+    ctx.fillText(String(rows[i][1]), rightX+colW/2, yy+34*S, colW-12*S);
     ctx.restore();
   }
 
@@ -2318,6 +2398,8 @@ function loop(now){
   const k = Math.min((now-last)/16.667, 3);
   last = now;
   try {
+    const resetKey = getSaturdayResetKey();
+    if (save.saturdayResetKey !== resetKey) applySaturdayReset(resetKey);
     step(k);
     render();
   } catch(err){
