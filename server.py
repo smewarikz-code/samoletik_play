@@ -302,7 +302,10 @@ def stars_status():
                 SELECT i.created_at, i.game_stars, i.price_xtr, i.status,
                        EXISTS (
                            SELECT 1 FROM star_payments p WHERE p.payload = i.payload
-                       ) AS payment_recorded
+                       ) AS payment_recorded,
+                       EXISTS (
+                           SELECT 1 FROM star_recoveries r WHERE r.payload = i.payload
+                       ) AS recovery_marked
                 FROM star_invoices i
                 WHERE i.telegram_id = %s
                 ORDER BY i.created_at DESC
@@ -318,6 +321,7 @@ def stars_status():
                     "price_xtr": item["price_xtr"],
                     "status": item["status"],
                     "payment_recorded": item["payment_recorded"],
+                    "recovery_marked": item["recovery_marked"],
                 } for item in invoices
             ],
         })
