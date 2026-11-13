@@ -156,6 +156,24 @@ def health():
         return jsonify({"status": "error", "database": "unavailable"}), 503
 
 
+@app.post("/api/score/reset")
+def reset_my_score():
+    player, error = authenticated_player()
+    if error:
+        return error
+    try:
+        with get_connection() as conn:
+            ensure_schema(conn)
+            conn.execute("""
+                UPDATE players SET best_score = 0, updated_at = NOW()
+                WHERE telegram_id = %s
+            """, (player["telegram_id"],))
+        return jsonify({"ok": True})
+    except Exception:
+        app.logger.exception("Could not reset player score")
+        return jsonify({"error": "score_reset_failed"}), 503
+
+
 @app.get("/api/leaderboard")
 def leaderboard():
     try:
@@ -164,7 +182,7 @@ def leaderboard():
         with get_connection() as conn:
             ensure_schema(conn)
             rows = conn.execute("""
-                SELECT display_name, username, best_score FROM players
+                SELECT telegram_id, display_name, username, best_score FROM players
                 WHERE best_score > 0 ORDER BY best_score DESC, updated_at ASC LIMIT %s
             """, (limit,)).fetchall()
         return jsonify({"players": rows})
