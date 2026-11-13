@@ -374,11 +374,13 @@ function load(){
     save.stars = 0;
     save.accountResetV1 = true;
   }
-  // Одноразовый бонус 500 игровых звёзд для каждого локального сохранения.
-  if (!save.bonus500GrantedV1) {
-    save.stars += 500;
-    save.bonus500GrantedV1 = true;
+  // Одноразовый общий сброс старого бонусного баланса для всех локальных сохранений.
+  // Срабатывает один раз после публикации этой версии.
+  if (!save.starsResetToZeroV1) {
+    save.stars = 0;
+    save.starsResetToZeroV1 = true;
   }
+  // Старый флаг бонуса больше не используется; новые игроки начинают с 0 звёзд.
   if(!SKINS[save.skin]) save.skin = 'classic';
 }
 function persist(){ try { localStorage.setItem('tgPlaneSave3', JSON.stringify(save)); } catch(e){} }
