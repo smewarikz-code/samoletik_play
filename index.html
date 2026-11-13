@@ -979,7 +979,24 @@ function changePlayerName(){
   }
 }
 
-// Профили игроков в глобальном рейтинге не открываются по нажатию.
+// Открывает Telegram-профиль игрока из таблицы рекордов.
+function openLeaderboardTelegramProfile(item){
+  if (!item) return;
+  const username = String(item.username || item.telegramUsername || '').trim().replace(/^@/, '');
+  const telegramId = String(item.telegramId || '').trim();
+  if (username){
+    const url = 'https://t.me/' + encodeURIComponent(username);
+    if (tg && typeof tg.openTelegramLink === 'function') tg.openTelegramLink(url);
+    else if (tg && typeof tg.openLink === 'function') tg.openLink(url);
+    else window.open(url, '_blank', 'noopener');
+    return;
+  }
+  if (telegramId){
+    try { window.location.href = 'tg://user?id=' + encodeURIComponent(telegramId); } catch (_) {}
+    return;
+  }
+  haptic('rigid');
+}
 
 cvs.addEventListener('pointerdown', e => {
   e.preventDefault();
@@ -1040,7 +1057,8 @@ cvs.addEventListener('pointerup', e=>{
     if (moved < 8*S && x >= lx && x <= lx+lw && y >= rowsTop && y <= listBottom){
       const rowH = 34*S;
       const index = Math.floor((y-rowsTop+leaderboardScroll)/rowH);
-      // Нажатие на строку рейтинга не открывает Telegram-профиль.
+      const entries = Array.isArray(globalLeaderboard) ? globalLeaderboard : [];
+      if (index >= 0 && index < entries.length) openLeaderboardTelegramProfile(entries[index]);
     }
   }
   stopLeaderboardDrag(); stopShopDrag();
