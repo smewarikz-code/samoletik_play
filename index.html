@@ -2554,6 +2554,7 @@ function drawWin(){
 
 /* ============ Кадр ============ */
 function render(){
+  if (onlineCounter) onlineCounter.style.display = state === 'menu' ? 'block' : 'none';
   uiButtons = [];
   ctx.save();
   if (shakeT > 0) ctx.translate((Math.random()-.5)*8*S, (Math.random()-.5)*8*S);
