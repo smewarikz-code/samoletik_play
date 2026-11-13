@@ -2330,7 +2330,21 @@ function drawShop(){
     const sk = SKINS[id];
     const owned = save.owned[id], equipped = save.skin === id;
     panel(leftX, y, colW, rowH);
-    const spr = planeSprite(id);
+    let spr;
+    try {
+      spr = planeSprite(id);
+    } catch (err) {
+      console.error('Ошибка отрисовки самолёта в магазине:', id, err);
+      // Запасная миниатюра не позволяет ошибке одной модели закрыть весь магазин.
+      spr = document.createElement('canvas');
+      spr.width = spr.height = 180;
+      const fallbackCtx = spr.getContext('2d');
+      fallbackCtx.fillStyle = '#dceef8';
+      fallbackCtx.beginPath();
+      fallbackCtx.moveTo(150,90); fallbackCtx.lineTo(28,48);
+      fallbackCtx.lineTo(45,90); fallbackCtx.lineTo(28,132);
+      fallbackCtx.closePath(); fallbackCtx.fill();
+    }
     ctx.drawImage(spr, leftX+8*S, y+rowH/2-26*S, 52*S, 52*S);
     const tx = leftX + 66*S;
     const btnW = Math.min(112*S, colW*.32), btnH = 40*S;
