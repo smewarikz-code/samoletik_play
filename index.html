@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Самолётик</title>
+<title>Самолётик: Эра приключений</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
   html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#eaf6fd; }
@@ -72,11 +72,11 @@ const SHOP_ITEMS = [
 
 function buyStars(item){
   if (!tg || !tg.openInvoice){
-    alert('Покупки доступны только в Telegram');
+    alert(translateText('Покупки доступны только в Telegram'));
     return;
   }
   if (item.invoice.startsWith('ССЫЛКА')) {
-    alert('Ссылка на оплату ещё не настроена. Нужно сгенерировать инвойс.');
+    alert(translateText('Ссылка на оплату ещё не настроена. Нужно сгенерировать инвойс.'));
     return;
   }
   pendingPack = item;
@@ -84,7 +84,7 @@ function buyStars(item){
     tg.openInvoice(item.invoice);
   } catch(e){
     pendingPack = null;
-    alert('Ошибка открытия счёта: ' + e);
+    alert(translateText('Ошибка открытия счёта: ') + e);
   }
 }
 /* ============ Экран пополнения ============ */
@@ -223,10 +223,17 @@ function load(){
     if (un) save.playerName = un.substring(0, 12);
   }
   if(!save.owned) save.owned = { classic:true, gold:false, diamond:false, cosmic:false };
+  if(!save.accountResetV1){
+    save.best = 0;
+    save.weeklyBest = 0;
+    save.stars = 0;
+    save.accountResetV1 = true;
+  }
   if(!SKINS[save.skin]) save.skin = 'classic';
 }
 function persist(){ try { localStorage.setItem('tgPlaneSave3', JSON.stringify(save)); } catch(e){} }
 load();
+persist();
 
 
 /* ============ Масштаб и ресайз ============ */
@@ -247,52 +254,52 @@ function resize(){
 window.addEventListener('resize', resize);
 resize();
 
-/* ============ Спрайт самолётика ============ */
+/* ============ Спрайт Самолётик: Эра приключений ============ */
 function planeSprite(skinId){
   if (planeCache[skinId]) return planeCache[skinId];
   const sk = SKINS[skinId];
-  const c = document.createElement('canvas');
-  c.width = c.height = 120;
+  const c = document.createElement('canvas'); c.width = c.height = 180;
   const g = c.getContext('2d');
-  if (sk.phase) g.globalAlpha = .55;
-  g.scale(3,3); g.translate(20,20);
-  g.lineJoin = 'round';
-  g.beginPath();
-  g.moveTo(17,0); g.lineTo(-17,-13); g.lineTo(-7,0); g.lineTo(-17,13); g.closePath();
-  g.fillStyle = sk.body; g.fill();
-  g.lineWidth = 2; g.strokeStyle = sk.edge; g.stroke();
-  g.beginPath();
-  g.moveTo(17,0); g.lineTo(-17,13); g.lineTo(-7,0); g.closePath();
-  g.globalAlpha = .85; g.fillStyle = sk.shade; g.fill(); g.globalAlpha = 1;
-  g.beginPath();
-  g.moveTo(17,0); g.lineTo(-17,-13); g.lineTo(-7,0); g.closePath();
-  g.fillStyle = 'rgba(255,255,255,.25)'; g.fill();
-  g.beginPath(); g.moveTo(17,0); g.lineTo(-7,0);
-  g.strokeStyle = sk.edge; g.lineWidth = 1.2; g.stroke();
-  if (sk.spark){
-    g.fillStyle = '#ffffff';
-    const pts = [[6,-6],[-8,-7],[-11,7],[2,5]];
-    for (const pt of pts){
-      g.beginPath();
-      g.moveTo(pt[0],pt[1]-2.2); g.lineTo(pt[0]+1.4,pt[1]);
-      g.lineTo(pt[0],pt[1]+2.2); g.lineTo(pt[0]-1.4,pt[1]);
-      g.closePath(); g.fill();
-    }
-  }
-  planeCache[skinId] = c;
-  return c;
+  g.scale(3,3); g.translate(30,30); g.lineJoin='round'; g.lineCap='round';
+  if (sk.phase) g.globalAlpha=.72;
+  // Мягкая тень под корпусом
+  g.save(); g.shadowColor='rgba(0,0,0,.35)'; g.shadowBlur=5; g.shadowOffsetY=3;
+  // Основной корпус с объёмным металлическим градиентом
+  const body=g.createLinearGradient(0,-15,0,15);
+  body.addColorStop(0,'#ffffff'); body.addColorStop(.18,sk.body); body.addColorStop(.62,sk.shade); body.addColorStop(1,'#263746');
+  g.beginPath(); g.moveTo(23,0); g.lineTo(-17,-15); g.lineTo(-8,-2); g.lineTo(-18,14); g.closePath();
+  g.fillStyle=body; g.fill(); g.shadowColor='transparent'; g.lineWidth=1.5; g.strokeStyle=sk.edge; g.stroke(); g.restore();
+  // Верхнее и нижнее крыло с фасками
+  const wing=g.createLinearGradient(-16,-12,12,9); wing.addColorStop(0,'#ffffff'); wing.addColorStop(.35,sk.body); wing.addColorStop(1,sk.shade);
+  g.beginPath(); g.moveTo(8,-1); g.lineTo(-17,-15); g.lineTo(-9,-2); g.closePath(); g.fillStyle=wing; g.fill();
+  g.beginPath(); g.moveTo(8,1); g.lineTo(-18,14); g.lineTo(-9,2); g.closePath(); g.fillStyle=sk.shade; g.fill();
+  // Нос и центральная линия корпуса
+  g.beginPath(); g.moveTo(23,0); g.lineTo(8,-1); g.lineTo(-16,-12); g.strokeStyle='rgba(255,255,255,.72)'; g.lineWidth=.9; g.stroke();
+  g.beginPath(); g.moveTo(20,0); g.lineTo(-12,0); g.strokeStyle='rgba(20,35,48,.5)'; g.lineWidth=1.1; g.stroke();
+  // Кабина пилота удалена: цельный металлический корпус без стеклянного фонаря.
+  // Хвостовой стабилизатор
+  g.beginPath(); g.moveTo(-13,0); g.lineTo(-19,-6); g.lineTo(-17,0); g.lineTo(-19,6); g.closePath();
+  g.fillStyle=sk.body; g.fill(); g.strokeStyle=sk.edge; g.lineWidth=.8; g.stroke();
+  if(sk.spark){ g.fillStyle='#fff'; for(const pt of [[-3,-8],[10,5],[-11,8]]){g.beginPath();g.arc(pt[0],pt[1],.9,0,Math.PI*2);g.fill();} }
+  g.globalAlpha=1; planeCache[skinId]=c; return c;
 }
 
 /* ============ Облако ============ */
 function buildTiles(){
-  const c = document.createElement('canvas');
-  c.width = 160; c.height = 100;
-  const g = c.getContext('2d');
-  g.fillStyle = 'rgba(255,255,255,.9)';
-  g.beginPath();
-  g.arc(55,60,28,0,7); g.arc(85,48,34,0,7); g.arc(115,62,24,0,7);
-  g.fill();
-  cloudSpr = c;
+  const c=document.createElement('canvas'); c.width=200; c.height=120;
+  const g=c.getContext('2d');
+  // Объёмное мягкое облако с теневой нижней частью
+  g.save(); g.shadowColor='rgba(54,105,145,.28)'; g.shadowBlur=12; g.shadowOffsetY=5;
+  const grad=g.createLinearGradient(0,24,0,112);
+  grad.addColorStop(0,'#ffffff'); grad.addColorStop(.48,'#f5fbff'); grad.addColorStop(1,'#b8d2e5');
+  g.fillStyle=grad; g.beginPath();
+  g.moveTo(25,88); g.bezierCurveTo(8,85,10,57,31,52);
+  g.bezierCurveTo(34,28,58,20,77,35); g.bezierCurveTo(91,2,139,9,145,42);
+  g.bezierCurveTo(174,36,193,59,180,81); g.bezierCurveTo(175,99,154,103,133,101);
+  g.lineTo(44,101); g.bezierCurveTo(33,101,27,96,25,88); g.closePath(); g.fill(); g.restore();
+  const hi=g.createLinearGradient(35,25,130,70); hi.addColorStop(0,'rgba(255,255,255,.85)'); hi.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle=hi; g.beginPath(); g.ellipse(83,42,45,16,-.2,0,Math.PI*2); g.fill();
+  cloudSpr=c;
 }
 const clouds = [];
 for (let i=0;i<6;i++) clouds.push({x:Math.random()*600, y:Math.random(), sp:.2+Math.random()*.4, sc:.6+Math.random()*.8});
@@ -574,6 +581,47 @@ function buildLayer(ti, li){
       }
     }
   }
+  // Реалистичные детали ландшафта: свет, фактура, растительность и атмосферная перспектива.
+  g.save();
+  g.globalAlpha = li === 0 ? .34 : .58;
+  if (n === 'Горы' || n === 'Льды') {
+    for (let i=0;i<Math.ceil(lw/(95*S));i++) {
+      const x=i*95*S+rnd()*55*S, peak=base-(li===0?100:175)*S*(.55+rnd()*.6);
+      g.strokeStyle=n==='Льды'?'rgba(255,255,255,.78)':'rgba(255,255,255,.55)';
+      g.lineWidth=(li===0?1.5:2.4)*S;
+      g.beginPath(); g.moveTo(x,peak+18*S); g.lineTo(x+12*S,peak+34*S); g.lineTo(x+23*S,peak+27*S); g.stroke();
+      g.strokeStyle='rgba(35,65,85,.22)'; g.lineWidth=1*S;
+      g.beginPath(); g.moveTo(x+28*S,peak+42*S); g.lineTo(x+42*S,peak+66*S); g.stroke();
+    }
+  } else if (n === 'Лес' || n === 'Осень') {
+    for(let i=0;i<Math.ceil(lw/(18*S));i++){
+      const x=i*18*S+rnd()*9*S, y=base-(li===0?65:120)*S*(.5+rnd()*.6);
+      const r=(li===0?8:13)*S*(.5+rnd()*.7);
+      const colors=n==='Осень'?['#b65e2d','#d18a35','#8d4b2c','#c2a34b']:['#234f3a','#326b45','#477b4d','#1d4938'];
+      g.fillStyle=colors[Math.floor(rnd()*colors.length)];
+      g.beginPath(); g.arc(x,y,r,0,Math.PI*2); g.arc(x+r*.7,y+3*S,r*.72,0,Math.PI*2); g.fill();
+      if(li===1){g.strokeStyle='rgba(48,38,25,.45)';g.lineWidth=2*S;g.beginPath();g.moveTo(x,y+r*.4);g.lineTo(x,base);g.stroke();}
+    }
+  } else if (n === 'Пустыня') {
+    for(let i=0;i<Math.ceil(lw/(150*S));i++){
+      const x=i*150*S+rnd()*60*S, y=base-(li===0?35:75)*S*(.4+rnd()*.6);
+      g.strokeStyle='rgba(255,244,205,.58)';g.lineWidth=2*S;g.beginPath();g.moveTo(x,y);g.quadraticCurveTo(x+28*S,y-8*S,x+55*S,y+2*S);g.stroke();
+      if(li===1 && rnd()>.45){g.strokeStyle='rgba(55,105,62,.8)';g.lineWidth=4*S;g.beginPath();g.moveTo(x+70*S,base);g.lineTo(x+70*S,y-14*S);g.moveTo(x+70*S,y+8*S);g.lineTo(x+60*S,y+2*S);g.moveTo(x+70*S,y+1*S);g.lineTo(x+80*S,y-5*S);g.stroke();}
+    }
+  } else if (n === 'Вулкан') {
+    for(let i=0;i<24;i++){const x=rnd()*lw,y=base-rnd()*base*.65;g.fillStyle=i%2?'rgba(255,105,35,.18)':'rgba(25,20,20,.22)';g.beginPath();g.arc(x,y,(2+rnd()*5)*S,0,7);g.fill();}
+    if(li===1){g.strokeStyle='rgba(255,91,35,.75)';g.lineWidth=2*S;for(let i=0;i<5;i++){const x=rnd()*lw;g.beginPath();g.moveTo(x,base);g.lineTo(x+8*S,base-15*S-rnd()*35*S);g.stroke();}}
+  } else if (n === 'Ночь' || n === 'Неон') {
+    if(li===1){for(let i=0;i<Math.ceil(lw/(22*S));i++){const x=i*22*S+rnd()*10*S,y=base-(40+rnd()*110)*S;g.fillStyle='rgba(255,205,120,.55)';for(let wy=y+12*S;wy<base-8*S;wy+=17*S){if(rnd()>.35)g.fillRect(x+5*S,wy,3*S,5*S);}}}
+  } else if (n === 'Космос') {
+    for(let i=0;i<110;i++){const x=rnd()*lw,y=rnd()*base;g.fillStyle='rgba(255,255,255,'+(.2+rnd()*.65)+')';g.beginPath();g.arc(x,y,(.35+rnd()*1.1)*S,0,7);g.fill();}
+    const neb=g.createRadialGradient(lw*.68,base*.35,2,lw*.68,base*.35,150*S);neb.addColorStop(0,'rgba(116,92,190,.2)');neb.addColorStop(1,'rgba(80,70,150,0)');g.fillStyle=neb;g.fillRect(0,0,lw,base);
+  } else if (n === 'Океан') {
+    for(let i=0;i<Math.ceil(lw/(70*S));i++){const x=i*70*S+rnd()*25*S,y=base-(li===0?20:48)*S;g.strokeStyle='rgba(220,250,255,.48)';g.lineWidth=1.4*S;g.beginPath();g.moveTo(x,y);g.quadraticCurveTo(x+18*S,y-5*S,x+38*S,y);g.stroke();}
+  }
+  // Лёгкая воздушная перспектива смягчает дальний план.
+  const mist=g.createLinearGradient(0,base*.45,0,base);mist.addColorStop(0,'rgba(255,255,255,0)');mist.addColorStop(1,li===0?'rgba(235,245,250,.22)':'rgba(235,245,250,.06)');g.fillStyle=mist;g.fillRect(0,0,lw,base);
+  g.restore();
   return c;
 }
 function getBg(ti){
@@ -584,10 +632,16 @@ function getBg(ti){
 }
 
 /* ============ Состояние ============ */
-let state = 'menu';   // menu | levels | shop | records | play | pause | pass | over | win
+let state = 'menu';   // menu | levels | briefing | shop | records | play | pause | pass | over | win
+let briefingLevel = 1;
+function showBriefing(lvl){ briefingLevel = Math.min(MAX_LEVEL, Math.max(1, lvl|0)); state = 'briefing'; }
 const plane = { x:0, y:0, vy:0, angle:0 };
 let pipes = [];
-let score = 0, startScore = 0, curLevel = 1, lastStart = 1;
+let hazards = [];
+let collectibles = [];
+let pipeCount = 0;
+let hazardTimer = 260;
+let score = 0, startScore = 0, shopEligibleScore = 0, curLevel = 1, lastStart = 1;
 let t = 0, spawnTimer = 0, overTime = 0;
 let uiButtons = [];
 let fx = [], wx = [];
@@ -735,9 +789,10 @@ function startGame(lvl){
   curLevel = Math.min(MAX_LEVEL, Math.max(1, lvl));
   startScore = LEVEL_SCORE*(curLevel-1);
   score = startScore;
+  shopEligibleScore = 0;
   plane.x = Math.min(W*.28, 160*S);
   plane.y = H*.45; plane.vy = 0; plane.angle = 0;
-  pipes = []; fx = []; spawnTimer = 0; shieldT = 0; shieldUsed = false;
+  pipes = []; hazards = []; collectibles = []; pipeCount = 0; hazardTimer = 260; fx = []; spawnTimer = 0; shieldT = 0; shieldUsed = false;
   phaseT = 0; phaseUsed = false; luckyUsed = false; 
   themeIdx = Math.floor(((lvl|0)-1)/2) % THEMES.length;
   initWx();
@@ -783,7 +838,7 @@ function buySkin(id){
 }
 
 function changePlayerName(){
-  const nn = prompt('Ваше имя (до 12 символов):', save.playerName);
+  const nn = prompt(translateText('Ваше имя (до 12 символов):'), save.playerName);
   if (nn && nn.trim()){
     save.playerName = nn.trim().substring(0, 12);
     persist(); haptic('light');
@@ -804,7 +859,8 @@ window.addEventListener('keydown', e => {
   e.preventDefault();
   if (e.repeat) return;
   if (state === 'play') flap();
-  else if (state === 'menu') startGame(1);
+  else if (state === 'menu') showBriefing(1);
+  else if (state === 'briefing') return;
   else if (state === 'over' && performance.now()-overTime > 600) startGame(lastStart);
   else if (state === 'pause') state = 'play';
   else if (state === 'shop' || state === 'levels' || state === 'records' || state === 'topup') toMenu();
@@ -834,21 +890,67 @@ function spawnPipe(lvl){
       p.phase = Math.random()*Math.PI*2;
       p.amp = Math.min(22, 10 + Math.floor(lvl/2)*2) * S;  // было до 36 → стало до 22
       p.spd = 0.55 + Math.min(0.6, (lvl-2)*0.04);          // было до 1.8 → стало до 1.15
-    } else {                            // уровни 4, 8, 12... — зазор «дышит»
-      p.mode = 'pulse';
+    } else {                            // уровни 4, 8, 12... — движутся баррикады и меняется ширина зазора
+      p.mode = 'pulseMove';
+      p.baseY = gapY;
       p.baseGap = gap;
       p.phase = Math.random()*Math.PI*2;
-      p.amp = Math.min(12, 5 + Math.floor(lvl/4)*2) * S;   // было до 20 → стало до 12
-      p.spd = 0.6 + Math.min(0.6, (lvl-4)*0.04);           // было до 1.9 → стало до 1.2
+      p.amp = Math.min(12, 5 + Math.floor(lvl/4)*2) * S;
+      p.spd = 0.6 + Math.min(0.6, (lvl-4)*0.04);
+      p.moveAmp = Math.min(22, 10 + Math.floor(lvl/2)*2) * S;
     }
   }
 
 
+  const previous = pipes.length ? pipes[pipes.length-1] : null;
   pipes.push(p);
+  pipeCount++;
+  // Туман теперь появляется редко — примерно в каждом четвёртом подходящем промежутке.
+  if (previous){
+    const freeSpace = p.x - (previous.x + PIPE_W);
+    if (freeSpace > 95*S){
+      const midX = previous.x + PIPE_W + freeSpace/2;
+      const spawnedHazard = Math.random() < 0.24 ? spawnHazard(midX) : null;
+      // Собираемые звёздочки доступны на каждом уровне и дают +5 к игровому счёту.
+      // Размещаем их только там, где они не пересекаются с облачками.
+      if (pipeCount % 2 === 0){
+        const starR = 13*S;
+        const minY = p.gapY - p.gap*0.21;
+        const maxY = p.gapY + p.gap*0.21;
+        let starY = null;
+        for (let attempt = 0; attempt < 24; attempt++){
+          const candidateY = minY + Math.random()*(maxY-minY);
+          const overlapsCloud = hazards.some(h =>
+            Math.abs(h.x-midX) < h.rx + starR + 8*S &&
+            Math.abs(h.y-candidateY) < h.ry + starR + 8*S
+          );
+          if (!overlapsCloud){ starY = candidateY; break; }
+        }
+        if (starY !== null){
+          collectibles.push({type:'star', x:midX, y:starY, r:starR, spin:Math.random()*Math.PI*2, taken:false});
+        }
+      }
+    }
+  }
 }
 
-function addScore(n){
+function spawnHazard(x){
+  // Между соседними баррикадами появляется только туман.
+  const y = 90*S + Math.random()*Math.max(80*S, H-GROUND_H-180*S);
+  const hazard = {type:'cloud', x, y, rx:34*S, ry:27*S,
+    phase:0, passed:false};
+  hazards.push(hazard);
+  return hazard;
+}
+function hazardHit(h){
+  const dx=(plane.x-h.x)/h.rx;
+  const dy=(plane.y-h.y)/h.ry;
+  return dx*dx+dy*dy < .72;
+}
+
+function addScore(n, countsForShop = true){
   score += n;
+  if (countsForShop) shopEligibleScore += n;
   if (curLevel < MAX_LEVEL && score >= curLevel*LEVEL_SCORE){
     passLevel = curLevel;
     save.maxLevel = Math.min(MAX_LEVEL, Math.max(save.maxLevel, curLevel+1));
@@ -864,7 +966,7 @@ function finishGame(win){
   overTime = performance.now();
   if (!win){ shakeT = 18; spawnCrash(plane.x, plane.y); haptic('heavy'); }
 
-  let earnedStars = Math.floor((score - startScore) / 10); // 1 звезда за каждые 10 очков
+  let earnedStars = Math.floor(shopEligibleScore / 10); // В магазин идут только очки за пройденные баррикады
   save.stars += earnedStars;
   save.games++;
   if (score > save.best) save.best = score;
@@ -947,15 +1049,41 @@ function step(k){
   spawnTimer += speed*k;
   if (spawnTimer >= levelSpacing(curLevel)){ spawnTimer -= levelSpacing(curLevel); spawnPipe(curLevel); }
 
+  for (let i=hazards.length-1; i>=0; i--){
+    const h=hazards[i];
+    h.x -= speed*k;
+    const dx=(plane.x-h.x)/h.rx, dy=(plane.y-h.y)/h.ry;
+    if (hazardHit(h) && phaseT<=0){ die(); if(state!=='play') return; }
+    if (!h.passed && h.x < plane.x-PLANE_R){ h.passed=true; }
+    if (h.x < -150*S) hazards.splice(i,1);
+  }
+
+  for (let i=collectibles.length-1; i>=0; i--){
+    const c = collectibles[i];
+    c.x -= speed*k;
+    c.spin += .07*k;
+    const dx = plane.x-c.x, dy = plane.y-c.y;
+    if (dx*dx+dy*dy < (PLANE_R+c.r)* (PLANE_R+c.r)){
+      // Звёздочка даёт +5 к игровому счёту, но не учитывается в валюте магазина.
+      addScore(5, false);
+      haptic('medium');
+      for(let n=0;n<8;n++) pushFx({x:c.x,y:c.y,vx:(Math.random()-.5)*3*S,vy:(Math.random()-.5)*3*S,life:18,max:18,type:'star4',r:3*S,col:'255,220,70'});
+      collectibles.splice(i,1);
+      if (state!=='play') return;
+    } else if (c.x < -40*S) collectibles.splice(i,1);
+  }
+
   for (let i=pipes.length-1; i>=0; i--){
     const p = pipes[i];
-    if (p.mode === 'move'){
-      const ny = p.baseY + Math.sin(t*0.035*p.spd + p.phase) * p.amp;
+    if (p.mode === 'move' || p.mode === 'pulseMove'){
+      const moveAmp = p.mode === 'pulseMove' ? p.moveAmp : p.amp;
+      const ny = p.baseY + Math.sin(t*0.035*p.spd + p.phase) * moveAmp;
       // не даём зазору уйти в потолок или в землю
       p.gapY = Math.max(p.gap/2 + 40*S, Math.min(H - GROUND_H - p.gap/2 - 40*S, ny));
-    } else if (p.mode === 'pulse'){
+    }
+    if (p.mode === 'pulse' || p.mode === 'pulseMove'){
       const ng = p.baseGap + Math.sin(t*0.035*p.spd + p.phase) * p.amp;
-            p.gap = Math.max(180*S, ng);
+      p.gap = Math.max(180*S, ng);
     }
     p.x -= speed*k;
     if (!p.passed && p.x+PIPE_W < plane.x-PLANE_R){ p.passed = true; addScore(1); haptic('light'); if (state!=='play') return; }
@@ -999,21 +1127,28 @@ function panel(x,y,w,h){
 
 /* ============ Мир ============ */
 function drawSky(){
-  const th = THEMES[themeIdx];
-  const sky = ctx.createLinearGradient(0,0,0,H);
-  sky.addColorStop(0, th.skyTop); sky.addColorStop(1, th.skyBot);
-  ctx.fillStyle = sky; ctx.fillRect(0,0,W,H);
-  const gx = W*.75, gy = H*.18, gr = 90*S;
-  const glow = ctx.createRadialGradient(gx,gy,4,gx,gy,gr);
-  glow.addColorStop(0, th.glow);
-  glow.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = glow;
-  ctx.fillRect(gx-gr, gy-gr, gr*2, gr*2);
-  for (const c of clouds){
-    const cy = c.y*H*.5 + 20*S, sz = c.sc*S;
-    ctx.drawImage(cloudSpr, c.x, cy-40*S, 160*S*sz, 100*S*sz);
+  const th=THEMES[themeIdx], scene=th.scene;
+  const palettes={
+    'Горы':['#75b8e8','#d8e8ef'],'Лес':['#77b6dc','#dce9d5'],
+    'Пустыня':['#f2bd79','#f7dfb5'],'Вулкан':['#514b58','#c17a55'],
+    'Ночь':['#101d36','#42536b'],'Неон':['#160e36','#49335f'],
+    'Космос':['#050817','#171b3d'],'Льды':['#8bc8e8','#e4f5fb'],
+    'Океан':['#48a6d5','#d8edf2'],'Осень':['#8aabc2','#e9c59b']
+  };
+  const pal=palettes[scene]||[th.skyTop,th.skyBot];
+  const sky=ctx.createLinearGradient(0,0,0,H);sky.addColorStop(0,pal[0]);sky.addColorStop(.68,pal[1]);sky.addColorStop(1,'rgba(255,255,255,.18)');
+  ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+  if(scene!=='Ночь'&&scene!=='Неон'&&scene!=='Космос'){
+    const sx=W*.78,sy=H*(scene==='Пустыня'?.22:.16),r=24*S;
+    const halo=ctx.createRadialGradient(sx,sy,r*.25,sx,sy,r*4.5);halo.addColorStop(0,'rgba(255,245,210,.48)');halo.addColorStop(1,'rgba(255,245,210,0)');
+    ctx.fillStyle=halo;ctx.fillRect(sx-r*4.5,sy-r*4.5,r*9,r*9);
+    const sun=ctx.createRadialGradient(sx-r*.3,sy-r*.3,1,sx,sy,r);sun.addColorStop(0,'#fff9e7');sun.addColorStop(1,'rgba(255,224,166,.72)');ctx.fillStyle=sun;ctx.beginPath();ctx.arc(sx,sy,r,0,Math.PI*2);ctx.fill();
   }
+  const haze=ctx.createLinearGradient(0,H*.35,0,H*.86);haze.addColorStop(0,'rgba(255,255,255,0)');haze.addColorStop(1,'rgba(255,255,255,.17)');ctx.fillStyle=haze;ctx.fillRect(0,H*.35,W,H*.51);
+  for(const c of clouds){const cy=c.y*H*.5+20*S,sz=c.sc*S;ctx.globalAlpha=scene==='Космос'?.12:.72;ctx.drawImage(cloudSpr,c.x,cy-40*S,200*S*sz,120*S*sz);}
+  ctx.globalAlpha=1;
 }
+
 function drawBgLayers(){
   const b = getBg(themeIdx);
   const lw = b.far.width;
@@ -1025,61 +1160,63 @@ function drawBgLayers(){
   ctx.drawImage(b.near, lw-offN, 0, lw, H);
 }
 function drawGround(){
-  const th = THEMES[themeIdx];
-  const gy = H - GROUND_H;
-  const g = ctx.createLinearGradient(0,gy,0,H);
-  g.addColorStop(0, th.gTop); g.addColorStop(1, th.gBot);
-  ctx.fillStyle = g; ctx.fillRect(0,gy,W,GROUND_H);
-  ctx.fillStyle = th.gAcc;
-  const off = (t*1.5*S) % (40*S);
-  for (let x=-40*S+off; x<W+40*S; x+=40*S){
-    ctx.beginPath();
-    ctx.moveTo(x,gy); ctx.lineTo(x+20*S,H); ctx.lineTo(x,H);
-    ctx.closePath(); ctx.fill();
+  const th=THEMES[themeIdx], gy=H-GROUND_H;
+  const g=ctx.createLinearGradient(0,gy,0,H); g.addColorStop(0,th.gTop); g.addColorStop(.12,th.gAcc); g.addColorStop(1,th.gBot);
+  ctx.fillStyle=g; ctx.fillRect(0,gy,W,GROUND_H);
+  ctx.fillStyle='rgba(255,255,255,.34)'; ctx.fillRect(0,gy,W,2*S);
+  ctx.fillStyle='rgba(0,0,0,.12)'; ctx.fillRect(0,gy+5*S,W,2*S);
+  const off=(t*1.5*S)%(34*S);
+  for(let x=-34*S+off;x<W+34*S;x+=34*S){
+    ctx.fillStyle='rgba(255,255,255,.11)'; ctx.beginPath(); ctx.moveTo(x,gy+8*S); ctx.lineTo(x+17*S,H); ctx.lineTo(x+9*S,H); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='rgba(0,0,0,.08)'; ctx.fillRect(x+23*S,gy+9*S,2*S,GROUND_H-9*S);
   }
-  ctx.fillStyle = 'rgba(255,255,255,.25)';
-  ctx.fillRect(0,gy,W,3*S);
 }
 function drawPipes(){
-  const th = THEMES[themeIdx];
-  const st = pipeStyle(th.pipe);
-  for (const p of pipes){
-    const topH = p.gapY - p.gap/2;
-    const botY = p.gapY + p.gap/2;
-    const botH = H - GROUND_H - botY;
-    const segs = [[0, topH, 'bottom'], [botY, botH, 'top']];
-    for (const seg of segs){
-      const ry = seg[0], rh = seg[1];
-      if (rh <= 0) continue;
-      ctx.fillStyle = st.pattern;
-      ctx.fillRect(p.x, ry, PIPE_W, rh);
-      ctx.fillStyle = th.pipeTint;
-      ctx.fillRect(p.x, ry, PIPE_W, rh);
-      ctx.fillStyle = 'rgba(255,255,255,.2)';
-      ctx.fillRect(p.x, ry, 7*S, rh);
-      ctx.fillStyle = 'rgba(0,0,0,.2)';
-      ctx.fillRect(p.x+PIPE_W-8*S, ry, 8*S, rh);
-      const capH = 22*S;
-      const capY = seg[2] === 'bottom' ? ry + rh - capH : ry;
-      ctx.fillStyle = st.cap;
-      ctx.fillRect(p.x-5*S, capY, PIPE_W+10*S, capH);
-      ctx.fillStyle = 'rgba(255,255,255,.3)';
-      ctx.fillRect(p.x-5*S, capY, PIPE_W+10*S, 4*S);
-       if (st.glow){
-        ctx.strokeStyle = st.glow;
-        ctx.lineWidth = Math.max(1.5, 2.5*S);
-        ctx.beginPath();
-        ctx.moveTo(p.x + PIPE_W * 0.2, capY + capH * 0.3);
-        ctx.lineTo(p.x + PIPE_W * 0.8, capY + capH * 0.7);
-        ctx.stroke();
-        
-        ctx.beginPath();
-        ctx.moveTo(p.x + PIPE_W * 0.8, capY + capH * 0.3);
-        ctx.lineTo(p.x + PIPE_W * 0.2, capY + capH * 0.7);
-        ctx.stroke();
-       }
-    } 
-  } 
+  const th=THEMES[themeIdx], st=pipeStyle(th.pipe);
+  for(const p of pipes){
+    const topH=p.gapY-p.gap/2, botY=p.gapY+p.gap/2, botH=H-GROUND_H-botY;
+    const segs=[[0,topH,'bottom'],[botY,botH,'top']];
+    for(const seg of segs){
+      const ry=seg[0], rh=seg[1]; if(rh<=0) continue;
+      ctx.save();
+      const body=ctx.createLinearGradient(p.x,0,p.x+PIPE_W,0); body.addColorStop(0,'rgba(0,0,0,.22)'); body.addColorStop(.18,'rgba(255,255,255,.25)'); body.addColorStop(.48,'rgba(255,255,255,.04)'); body.addColorStop(.82,'rgba(0,0,0,.08)'); body.addColorStop(1,'rgba(0,0,0,.28)');
+      ctx.fillStyle=st.pattern; ctx.fillRect(p.x,ry,PIPE_W,rh); ctx.fillStyle=th.pipeTint; ctx.fillRect(p.x,ry,PIPE_W,rh); ctx.fillStyle=body; ctx.fillRect(p.x,ry,PIPE_W,rh);
+      // Тонкие швы и блики материала
+      ctx.fillStyle='rgba(255,255,255,.22)'; ctx.fillRect(p.x+5*S,ry,2*S,rh);
+      ctx.fillStyle='rgba(0,0,0,.18)'; ctx.fillRect(p.x+PIPE_W-4*S,ry,3*S,rh);
+      const capH=24*S, capY=seg[2]==='bottom'?ry+rh-capH:ry;
+      const cap=ctx.createLinearGradient(p.x,capY,p.x,capY+capH); cap.addColorStop(0,'rgba(255,255,255,.38)'); cap.addColorStop(.22,st.cap); cap.addColorStop(1,'rgba(0,0,0,.28)');
+      ctx.fillStyle=cap; ctx.fillRect(p.x-5*S,capY,PIPE_W+10*S,capH);
+      ctx.strokeStyle='rgba(255,255,255,.48)'; ctx.lineWidth=1.2*S; ctx.strokeRect(p.x-5*S,capY,PIPE_W+10*S,capH);
+      ctx.fillStyle='rgba(255,255,255,.32)'; ctx.fillRect(p.x-3*S,capY+3*S,PIPE_W+6*S,2*S);
+      if(st.glow){ctx.shadowColor=st.glow;ctx.shadowBlur=8*S;ctx.strokeStyle=st.glow;ctx.lineWidth=2*S;ctx.strokeRect(p.x+3*S,capY+4*S,PIPE_W-6*S,capH-8*S);}
+      ctx.restore();
+    }
+  }
+}
+
+function drawHazards(){
+  for(const h of hazards){
+    ctx.save(); ctx.translate(h.x,h.y);
+    const grad=ctx.createLinearGradient(-18*S,-18*S,18*S,18*S); grad.addColorStop(0,'#ffffff'); grad.addColorStop(.42,'#e9f6ff'); grad.addColorStop(1,'#8eb8d2');
+    ctx.shadowColor='rgba(42,93,130,.25)'; ctx.shadowBlur=9*S; ctx.shadowOffsetY=3*S;
+    ctx.fillStyle=grad; ctx.strokeStyle='rgba(91,143,177,.8)'; ctx.lineWidth=1.4*S;
+    ctx.beginPath(); ctx.arc(-12*S,3*S,13*S,Math.PI*.5,Math.PI*1.5); ctx.arc(0,-5*S,17*S,Math.PI,0); ctx.arc(13*S,3*S,12*S,Math.PI*1.5,Math.PI*.5); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.shadowColor='transparent'; ctx.fillStyle='rgba(255,255,255,.62)'; ctx.beginPath(); ctx.ellipse(-2*S,-12*S,8*S,3*S,-.2,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawCollectibles(){
+  for(const c of collectibles){
+    ctx.save(); ctx.translate(c.x,c.y); ctx.rotate(c.spin);
+    ctx.shadowColor='rgba(255,180,20,.8)'; ctx.shadowBlur=17*S; ctx.shadowOffsetY=2*S;
+    const gold=ctx.createLinearGradient(-c.r,-c.r,c.r,c.r); gold.addColorStop(0,'#fffbd0'); gold.addColorStop(.28,'#ffe66b'); gold.addColorStop(.62,'#ffbf19'); gold.addColorStop(1,'#d87900');
+    ctx.fillStyle=gold; ctx.strokeStyle='#fff7c0'; ctx.lineWidth=1.6*S;
+    ctx.beginPath(); for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,r=i%2===0?c.r:c.r*.46,x=Math.cos(a)*r,y=Math.sin(a)*r;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);} ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.shadowColor='transparent'; ctx.fillStyle='rgba(255,255,255,.7)'; ctx.beginPath(); ctx.arc(-c.r*.18,-c.r*.2,Math.max(1.2*S,c.r*.12),0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
 }
 
 function drawTelegramStar(x, y, size){
@@ -1146,12 +1283,188 @@ function drawHUD(){
 }
 
 
+
+/* ============ Язык интерфейса ============ */
+let gameLang = localStorage.getItem('tgPlaneLang') || 'ru';
+let languageOpen = false;
+const LANG_TEXT = {
+  en: {
+    'Самолётик: Эра приключений':'Little Plane: Age of Adventures',
+    'Рекорд: ':'Record: ','Начать игру':'Start game','Выбор уровня':'Choose level',
+    'Магазин':'Shop','Рекорды':'Records','Пополнить звёзды':'Get stars',
+    'Ур. ':'Lv. ','Пауза':'Paused','Продолжить':'Resume','В меню':'Main menu',
+    'Уровень ':'Level ',' пройден!':' completed!','Очки: ':'Score: ',
+    'Упс!':'Oops!','Играть ещё':'Play again','Победа! 🏆':'Victory! 🏆',
+    'Все ':'All ',' уровней пройдены!':' levels completed!',
+    'Выбор уровня':'Choose level','← Меню':'← Menu','Выбран':'Selected',
+    'Выбрать':'Select','Классический':'Classic','Золотой':'Golden',
+    'Бриллиантовый':'Diamond','Прозрачный':'Transparent',
+    'Лучший счёт':'Best score','Открыто уровней':'Levels unlocked',
+    'Игр сыграно':'Games played','Звёзды':'Stars','Пополнение':'Top up',
+    'Баланс: ⭐ ':'Balance: ⭐ ','Отмена':'Cancel','Язык':'Language',
+    'Русский':'Russian','English':'English','Deutsch':'German','Español':'Spanish','Italiano':'Italian'
+  },
+  es: {
+    'Самолётик: Эра приключений':'Avioncito: Era de aventuras',
+    'Рекорд: ':'Récord: ','Начать игру':'Jugar','Выбор уровня':'Elegir nivel',
+    'Магазин':'Tienda','Рекорды':'Récords','Пополнить звёзды':'Comprar estrellas',
+    'Ур. ':'Niv. ','Пауза':'Pausa','Продолжить':'Continuar','В меню':'Menú',
+    'Уровень ':'Nivel ',' пройден!':' completado!','Очки: ':'Puntos: ',
+    'Упс!':'¡Ups!','Играть ещё':'Jugar otra vez','Победа! 🏆':'¡Victoria! 🏆',
+    'Все ':'Todos los ',' уровней пройдены!':' niveles completados!',
+    '← Меню':'← Menú','Выбран':'Elegido','Выбрать':'Elegir',
+    'Классический':'Clásico','Золотой':'Dorado','Бриллиантовый':'Diamante',
+    'Прозрачный':'Transparente','Лучший счёт':'Mejor puntuación',
+    'Открыто уровней':'Niveles desbloqueados','Игр сыграно':'Partidas jugadas',
+    'Звёзды':'Estrellas','Пополнение':'Recargar','Баланс: ⭐ ':'Saldo: ⭐ ',
+    'Отмена':'Cancelar','Язык':'Idioma','Русский':'Ruso','English':'Inglés','Deutsch':'Alemán',
+    'Español':'Español','Italiano':'Italiano'
+  },
+  it: {
+    'Самолётик: Эра приключений':'Aeroplanino: Era di avventure',
+    'Рекорд: ':'Record: ','Начать игру':'Gioca','Выбор уровня':'Scegli livello',
+    'Магазин':'Negozio','Рекорды':'Record','Пополнить звёзды':'Acquista stelle',
+    'Ур. ':'Liv. ','Пауза':'Pausa','Продолжить':'Continua','В меню':'Menu',
+    'Уровень ':'Livello ',' пройден!':' completato!','Очки: ':'Punti: ',
+    'Упс!':'Ops!','Играть ещё':'Gioca ancora','Победа! 🏆':'Vittoria! 🏆',
+    'Все ':'Tutti i ',' уровней пройдены!':' livelli completati!',
+    '← Меню':'← Menu','Выбран':'Selezionato','Выбрать':'Scegli',
+    'Классический':'Classico','Золотой':'Dorato','Бриллиантовый':'Diamante',
+    'Прозрачный':'Trasparente','Лучший счёт':'Miglior punteggio',
+    'Открыто уровней':'Livelli sbloccati','Игр сыграно':'Partite giocate',
+    'Звёзды':'Stelle','Пополнение':'Ricarica','Баланс: ⭐ ':'Saldo: ⭐ ',
+    'Отмена':'Annulla','Язык':'Lingua','Русский':'Russo','English':'Inglese','Deutsch':'Tedesco',
+    'Español':'Spagnolo','Italiano':'Italiano'
+  },
+  de: {
+    'Самолётик: Эра приключений':'Kleines Flugzeug: Abenteuerzeit',
+    'Рекорд: ':'Rekord: ','Начать игру':'Spiel starten','Выбор уровня':'Level wählen',
+    'Магазин':'Shop','Рекорды':'Bestenliste','Пополнить звёзды':'Sterne aufladen',
+    'Ур. ':'Lvl. ','Пауза':'Pause','Продолжить':'Weiter','В меню':'Hauptmenü',
+    'Уровень ':'Level ',' пройден!':' geschafft!','Очки: ':'Punkte: ',
+    'Упс!':'Hoppla!','Играть ещё':'Nochmal spielen','Победа! 🏆':'Gewonnen! 🏆',
+    'Все ':'Alle ',' уровней пройдены!':' Level geschafft!',
+    '← Меню':'← Menü','Выбран':'Ausgewählt','Выбрать':'Wählen',
+    'Классический':'Klassisch','Золотой':'Gold','Бриллиантовый':'Diamant',
+    'Прозрачный':'Transparent','Лучший счёт':'Bestpunktzahl',
+    'Открыто уровней':'Freigeschaltete Level','Игр сыграно':'Gespielte Spiele',
+    'Звёзды':'Sterne','Пополнение':'Aufladen','Баланс: ⭐ ':'Guthaben: ⭐ ',
+    'Отмена':'Abbrechen','Язык':'Sprache','Русский':'Russisch',
+    'English':'Englisch','Deutsch':'Deutsch'
+  }
+
+};
+// Дополнительные переводы всех второстепенных надписей и описаний.
+const LANG_EXTRA = {
+  en: {
+    'ЩИТ':'SHIELD','⚠ Баррикады движутся!':'⚠ Barriers are moving!','⚠ Зазор сужается!':'⚠ Gap is closing!',
+    'Пополнение':'Top up','ИГРОК':'PLAYER','НЕДЕЛЬНЫЙ РЕКОРД':'WEEKLY RECORD',
+    'коснитесь, чтобы сменить имя':'tap to change name','Ваше имя (до 12 символов):':'Your name (up to 12 characters):',
+    'Покупки доступны только в Telegram':'Purchases are available only in Telegram',
+    'Ссылка на оплату ещё не настроена. Нужно сгенерировать инвойс.':'Payment link is not configured yet. An invoice must be generated.',
+    'Ошибка открытия счёта: ':'Could not open invoice: ',
+    'Без бонуса — честная классика':'No bonus — pure classic gameplay',
+    '50% шанс выжить после первого удара в уровне':'50% chance to survive the first hit in a level',
+    'Щит: спасает от первого удара':'Shield: protects against the first hit',
+    'Фазировка: проход сквозь одну трубу (1 раз за уровень)':'Phasing: pass through one barrier (once per level)',
+    'Горы':'Mountains','Лес':'Forest','Пустыня':'Desert','Вулкан':'Volcano','Ночь':'Night','Неон':'Neon','Космос':'Space','Льды':'Ice','Океан':'Ocean','Осень':'Autumn',
+    'Изумрудные':'Emerald','Алые':'Scarlet','Лазурные':'Azure','Янтарные':'Amber','Аметистовые':'Amethyst','Нефритовые':'Jade','Бирюзовые':'Turquoise','Коралловые':'Coral','Медные':'Copper','Облачные':'Cloudy','Лунные':'Moonlit','Солнечные':'Sunny','Туманные':'Misty','Морозные':'Frosty','Огненные':'Fiery','Призрачные':'Ghostly','Сумеречные':'Twilight','Рассветные':'Dawn','Закатные':'Sunset','Звёздные':'Starry','Далёкие':'Distant','Тайные':'Hidden','Древние':'Ancient','Забытые':'Forgotten','Зачарованные':'Enchanted','Хрустальные':'Crystal','Жемчужные':'Pearl','Опаловые':'Opal','Гранатовые':'Garnet','Сапфировые':'Sapphire','Пепельные':'Ashen','Молочные':'Milky','Мятные':'Mint','Персиковые':'Peach','Сливовые':'Plum','Оливковые':'Olive','Медовые':'Honey','Лиловые':'Lilac','Нежные':'Gentle','Дикие':'Wild','Спокойные':'Calm','Тайфунные':'Typhoon','Северные':'Northern','Южные':'Southern','Высокие':'High','Тихие':'Quiet','Первые':'First','Последние':'Last','Скрытые':'Secret','Вечные':'Eternal'
+  },
+  es: {
+    'ЩИТ':'ESCUDO','⚠ Баррикады движутся!':'⚠ ¡Las barreras se mueven!','⚠ Зазор сужается!':'⚠ ¡El espacio se estrecha!',
+    'ИГРОК':'JUGADOR','НЕДЕЛЬНЫЙ РЕКОРД':'RÉCORD SEMANAL','коснитесь, чтобы сменить имя':'toca para cambiar el nombre',
+    'Ваше имя (до 12 символов):':'Tu nombre (hasta 12 caracteres):','Покупки доступны только в Telegram':'Las compras solo están disponibles en Telegram',
+    'Ссылка на оплату ещё не настроена. Нужно сгенерировать инвойс.':'El enlace de pago aún no está configurado. Hay que generar una factura.',
+    'Ошибка открытия счёта: ':'Error al abrir la factura: ','Без бонуса — честная классика':'Sin bonificación: juego clásico y justo',
+    '50% шанс выжить после первого удара в уровне':'50 % de probabilidad de sobrevivir al primer golpe del nivel',
+    'Щит: спасает от первого удара':'Escudo: protege del primer golpe','Фазировка: проход сквозь одну трубу (1 раз за уровень)':'Fase: atraviesa una barrera (una vez por nivel)',
+    'Горы':'Montañas','Лес':'Bosque','Пустыня':'Desierto','Вулкан':'Volcán','Ночь':'Noche','Неон':'Neón','Космос':'Espacio','Льды':'Hielo','Океан':'Océano','Осень':'Otoño'
+  },
+  it: {
+    'ЩИТ':'SCUDO','⚠ Баррикады движутся!':'⚠ Le barriere si muovono!','⚠ Зазор сужается!':'⚠ Il passaggio si restringe!',
+    'ИГРОК':'GIOCATORE','НЕДЕЛЬНЫЙ РЕКОРД':'RECORD SETTIMANALE','коснитесь, чтобы сменить имя':'tocca per cambiare nome',
+    'Ваше имя (до 12 символов):':'Il tuo nome (massimo 12 caratteri):','Покупки доступны только в Telegram':'Gli acquisti sono disponibili solo su Telegram',
+    'Ссылка на оплату ещё не настроена. Нужно сгенерировать инвойс.':'Il link di pagamento non è ancora configurato. È necessario generare una fattura.',
+    'Ошибка открытия счёта: ':'Errore nell’apertura della fattura: ','Без бонуса — честная классика':'Nessun bonus: modalità classica e leale',
+    '50% шанс выжить после первого удара в уровне':'50% di probabilità di sopravvivere al primo urto del livello',
+    'Щит: спасает от первого удара':'Scudo: protegge dal primo urto','Фазировка: проход сквозь одну трубу (1 раз за уровень)':'Fasatura: attraversa una barriera (una volta per livello)',
+    'Горы':'Montagne','Лес':'Foresta','Пустыня':'Deserto','Вулкан':'Vulcano','Ночь':'Notte','Неон':'Neon','Космос':'Spazio','Льды':'Ghiaccio','Океан':'Oceano','Осень':'Autunno'
+  },
+  de: {
+    'ЩИТ':'SCHILD','⚠ Баррикады движутся!':'⚠ Barrieren bewegen sich!','⚠ Зазор сужается!':'⚠ Der Durchgang wird enger!',
+    'ИГРОК':'SPIELER','НЕДЕЛЬНЫЙ РЕКОРД':'WOCHENREKORD','коснитесь, чтобы сменить имя':'tippen, um den Namen zu ändern',
+    'Ваше имя (до 12 символов):':'Dein Name (bis zu 12 Zeichen):','Покупки доступны только в Telegram':'Käufe sind nur in Telegram möglich',
+    'Ссылка на оплату ещё не настроена. Нужно сгенерировать инвойс.':'Der Zahlungslink ist noch nicht eingerichtet. Eine Rechnung muss erstellt werden.',
+    'Ошибка открытия счёта: ':'Fehler beim Öffnen der Rechnung: ','Без бонуса — честная классика':'Kein Bonus – klassisches, faires Spiel',
+    '50% шанс выжить после первого удара в уровне':'50 % Chance, den ersten Treffer im Level zu überstehen',
+    'Щит: спасает от первого удара':'Schild: schützt vor dem ersten Treffer','Фазировка: проход сквозь одну трубу (1 раз за уровень)':'Phasenwechsel: durch eine Barriere fliegen (einmal pro Level)',
+    'Горы':'Berge','Лес':'Wald','Пустыня':'Wüste','Вулкан':'Vulkan','Ночь':'Nacht','Неон':'Neon','Космос':'Weltraum','Льды':'Eis','Океан':'Ozean','Осень':'Herbst',
+    'Лучший счёт':'Bestleistung','Открыто уровней':'Freigeschaltete Level','Игр сыграно':'Gespielte Partien',
+    'Русский':'Russisch','English':'Englisch','Español':'Spanisch','Italiano':'Italienisch'
+  }
+};
+for (const lang of Object.keys(LANG_EXTRA)) Object.assign(LANG_TEXT[lang], LANG_EXTRA[lang]);
+Object.assign(LANG_TEXT.de, {'горы': 'berge', 'лес': 'wald', 'пустыня': 'wüste', 'вулкан': 'vulkan', 'ночь': 'nacht', 'неон': 'neon', 'космос': 'weltraum', 'льды': 'eis', 'океан': 'ozean', 'осень': 'herbst'});
+Object.assign(LANG_TEXT.it, {'горы': 'montagne', 'лес': 'foresta', 'пустыня': 'deserto', 'вулкан': 'vulcano', 'ночь': 'notte', 'неон': 'neon', 'космос': 'spazio', 'льды': 'ghiaccio', 'океан': 'oceano', 'осень': 'autunno'});
+Object.assign(LANG_TEXT.es, {'горы': 'montañas', 'лес': 'bosque', 'пустыня': 'desierto', 'вулкан': 'volcán', 'ночь': 'noche', 'неон': 'neón', 'космос': 'espacio', 'льды': 'hielo', 'океан': 'océano', 'осень': 'otoño'});
+Object.assign(LANG_TEXT.en, {'горы': 'mountains', 'лес': 'forest', 'пустыня': 'desert', 'вулкан': 'volcano', 'ночь': 'night', 'неон': 'neon', 'космос': 'space', 'льды': 'ice', 'океан': 'ocean', 'осень': 'autumn'});
+
+function translateText(value) {
+  let text = String(value);
+  if (gameLang === 'ru') return text;
+  const dict = LANG_TEXT[gameLang] || {};
+  if (dict[text] !== undefined) return dict[text];
+  for (const [from, to] of Object.entries(dict).sort((a,b)=>b[0].length-a[0].length)) {
+    if (from.length > 2) text = text.split(from).join(to);
+  }
+  return text;
+}
+const nativeFillText = ctx.fillText.bind(ctx);
+ctx.fillText = function(value, ...args) {
+  let text = String(value);
+  if (gameLang !== 'ru') {
+    const dict = LANG_TEXT[gameLang] || {};
+    if (dict[text] !== undefined) text = dict[text];
+    else {
+      for (const [from, to] of Object.entries(dict).sort((a,b)=>b[0].length-a[0].length)) {
+        if (from.length > 2) text = text.split(from).join(to);
+      }
+    }
+  }
+  return nativeFillText(text, ...args);
+};
+function setGameLanguage(lang) {
+  gameLang = lang;
+  languageOpen = false;
+  try { localStorage.setItem('tgPlaneLang', lang); } catch(e) {}
+  haptic('light');
+}
+function drawLanguageControl() {
+  const fs = 76*S, x = W - fs - 12*S;
+  button(x, 56*S, fs, 34*S, 'Language', () => { languageOpen = !languageOpen; }, 'rgba(10,50,80,.65)');
+  if (!languageOpen) return;
+  const items = [
+    {id:'ru', label:'Русский'},
+    {id:'en', label:'English'},
+    {id:'de', label:'Deutsch'},
+    {id:'es', label:'Español'},
+    {id:'it', label:'Italiano'}
+  ];
+  const pw = 142*S, ph = 34*S, px = W-pw-12*S, py = 98*S;
+  panel(px, py, pw, ph*items.length+10*S);
+  items.forEach((item, i) => {
+    const yy = py+5*S+i*(ph+2*S);
+    button(px+5*S, yy, pw-10*S, ph, (gameLang===item.id?'✓ ':'')+item.label,
+      () => setGameLanguage(item.id), gameLang===item.id?'#2fbf6b':'#2AABEE');
+  });
+}
+
 /* ============ Экраны ============ */
 function drawMenu(){
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#0b4a6f';
   ctx.font = '800 ' + Math.round(Math.min(40*S,36)) + 'px Arial, sans-serif';
-  ctx.fillText('Самолётик', W/2, H*.13);
+  ctx.fillText('Самолётик: Эра приключений', W/2, H*.13);
 
   drawPlane(W/2, H*.30 + Math.sin(t*.06)*10*S, Math.sin(t*.04)*.12, 1.4);
 
@@ -1163,13 +1476,70 @@ function drawMenu(){
   const x = W/2 - bw/2;
   const y0 = H*.46;
 
-  button(x, y0,               bw, bh, 'Начать игру',  ()=>startGame(1));
+  button(x, y0,               bw, bh, 'Начать игру',  ()=>showBriefing(1));
   button(x, y0 + (bh+gap),    bw, bh, 'Выбор уровня', ()=>{ state='levels'; page=Math.max(0, Math.floor((save.maxLevel-1)/20)); }, '#1f8fc9');
   button(x, y0 + (bh+gap)*2,  bw, bh, 'Магазин',      ()=>{ state='shop'; }, '#1f8fc9');
   button(x, y0 + (bh+gap)*3,  bw, bh, 'Рекорды',      ()=>{ state='records'; }, '#1f8fc9');
   const fs = 34*S;
   button(x, y0 + (bh+gap)*4,  bw, bh, 'Пополнить звёзды', ()=>{ state='topup'; }, '#f5a623');
   button(W - fs - 12*S, 12*S, fs, fs, '⛶', goFull, 'rgba(10,50,80,.55)');
+  drawLanguageControl();
+}
+
+function drawBriefing(){
+  const pw = Math.min(W-28*S, 420*S), ph = Math.min(H-40*S, 370*S);
+  const px = (W-pw)/2, py = (H-ph)/2;
+  const hasBarrierMotion = briefingLevel % 2 === 0;
+  const hasNarrowingGap = briefingLevel % 4 === 0;
+  ctx.save();
+  ctx.fillStyle = 'rgba(5,25,42,.78)';
+  ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = '#f4fbff';
+  roundRect(px,py,pw,ph,18*S); ctx.fill();
+  ctx.strokeStyle = '#64c9f4'; ctx.lineWidth = 3*S;
+  roundRect(px,py,pw,ph,18*S); ctx.stroke();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#075078';
+  ctx.font = '800 ' + Math.round(25*S) + 'px Arial, sans-serif';
+  ctx.fillText('Перед полётом', W/2, py+34*S);
+  ctx.font = '700 ' + Math.round(17*S) + 'px Arial, sans-serif';
+  ctx.fillStyle = '#16804a';
+  ctx.fillText('🎯 Цель уровня', W/2, py+76*S);
+  ctx.font = Math.round(14*S) + 'px Arial, sans-serif';
+  ctx.fillStyle = '#24485b';
+  ctx.fillText('Чтобы открыть следующий уровень, набери 50 очков!', W/2, py+100*S);
+  ctx.font = '700 ' + Math.round(17*S) + 'px Arial, sans-serif';
+  ctx.fillStyle = '#b87900';
+  ctx.fillText('⭐ Звёздочки', W/2, py+145*S);
+  ctx.font = Math.round(14*S) + 'px Arial, sans-serif';
+  ctx.fillStyle = '#24485b';
+  ctx.fillText('Каждая даёт +5 очков к твоему рекорду.', W/2, py+169*S);
+  ctx.font = '700 ' + Math.round(17*S) + 'px Arial, sans-serif';
+  ctx.fillStyle = '#1685b5';
+  ctx.fillText('☁ Облачка', W/2, py+214*S);
+  ctx.font = Math.round(14*S) + 'px Arial, sans-serif';
+  ctx.fillStyle = '#24485b';
+  ctx.fillText('Облачка — препятствия. Облетай их, чтобы не столкнуться.', W/2, py+238*S);
+  if (hasBarrierMotion || hasNarrowingGap) {
+    ctx.font = '700 ' + Math.round(17*S) + 'px Arial, sans-serif';
+    ctx.fillStyle = '#b45309';
+    if (hasBarrierMotion && hasNarrowingGap) {
+      ctx.fillText('🚧 Баррикады двигаются', W/2, py+278*S);
+      ctx.font = Math.round(15*S) + 'px Arial, sans-serif';
+      ctx.fillStyle = '#713f12';
+      ctx.fillText('↔ Зазор меняет ширину', W/2, py+304*S);
+    } else if (hasBarrierMotion) {
+      ctx.fillText('🚧 Баррикады', W/2, py+278*S);
+      ctx.font = Math.round(13*S) + 'px Arial, sans-serif';
+      ctx.fillStyle = '#713f12';
+      ctx.fillText('Баррикады на этом уровне двигаются!', W/2, py+302*S);
+    } else if (hasNarrowingGap) {
+      ctx.fillText('↔ Зазор меняет ширину', W/2, py+290*S);
+    }
+  }
+  const bw = Math.min(210*S, pw-40*S), bh = 44*S;
+  button(W/2-bw/2, py+ph-58*S, bw, bh, 'Готов!', ()=>startGame(briefingLevel), '#20a56b');
+  ctx.restore();
 }
 
 function drawLevels(){
@@ -1205,9 +1575,9 @@ function drawLevels(){
       ctx.fillText(lvl, cx+cw/2, cy+ch/2-6*S);
       ctx.font = Math.round(10*S) + 'px Arial, sans-serif';
       ctx.fillStyle = 'rgba(11,58,85,.7)';
-      ctx.fillText(th.name, cx+cw/2, cy+ch/2+11*S);
+      ctx.fillText(translateText(th.name), cx+cw/2, cy+ch/2+11*S);
       const lx = cx, ly = cy, lw2 = cw, lh2 = ch;
-      uiButtons.push({x:lx,y:ly,w:lw2,h:lh2,action:(l=>()=>startGame(l))(lvl)});
+      uiButtons.push({x:lx,y:ly,w:lw2,h:lh2,action:(l=>()=>showBriefing(l))(lvl)});
     } else {
       ctx.fillStyle = 'rgba(120,130,140,.55)';
       roundRect(cx,cy,cw,ch,10*S); ctx.fill();
@@ -1258,7 +1628,7 @@ function drawShop(){
 
     ctx.fillStyle = '#5b7a8c';
     ctx.font = Math.round(Math.max(12*S,10)) + 'px Arial, sans-serif';
-    wrapText(sk.bonus, tx, y + 50*S, tw, Math.round(15*S));
+    wrapText(translateText(sk.bonus), tx, y + 50*S, tw, Math.round(15*S));
 
     const bx = x + w - btnW - 10*S, by = y + (rowH - btnH)/2;
     if (equipped){
@@ -1358,7 +1728,7 @@ function drawRecords(){
     ['Открыто уровней', save.maxLevel + ' / ' + MAX_LEVEL],
     ['Игр сыграно', save.games],
     ['Звёзды', '⭐ ' + save.stars],
-    ['Самолётик', SKINS[save.skin].name]
+    ['Самолётик: Эра приключений', SKINS[save.skin].name]
   ];
   for (let i=0;i<rows.length;i++){
     panel(x, y0 + i*(rh+8*S), w, rh);
@@ -1457,7 +1827,7 @@ function render(){
   drawWx();
 
   const world = state==='play' || state==='pause' || state==='over' || state==='pass' || state==='win';
-  if (world) drawPipes();
+  if (world) { drawPipes(); drawHazards(); drawCollectibles(); }
   drawGround();
 
   if (world) drawPlane(plane.x, plane.y, plane.angle, 1);
@@ -1468,6 +1838,7 @@ function render(){
 
   if (state === 'menu') drawMenu();
   if (state === 'levels') drawLevels();
+  if (state === 'briefing') drawBriefing();
   if (state === 'records') drawRecords();
   if (state === 'pause') drawPause();
   if (state === 'pass') drawPass();
