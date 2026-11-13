@@ -78,9 +78,6 @@ async function refreshOnlineCount() {
 refreshOnlineCount();
 setInterval(refreshOnlineCount, 15000);
 window.addEventListener('pageshow', refreshOnlineCount);
-window.addEventListener('pagehide', () => {
-  // The server expires this session automatically after 90 seconds without a heartbeat.
-}, { once: true });
 let globalLeaderboard = [];
 let leaderboardLoading = false;
 let leaderboardError = '';
@@ -103,6 +100,31 @@ async function refreshGlobalLeaderboard(){
   } finally {
     leaderboardLoading = false;
   }
+}
+
+// Объединяем серверный рейтинг с результатами на этом устройстве.
+// Локальные результаты остаются видны даже вне Telegram или при недоступности API.
+function getCombinedLeaderboard(){
+  const entries = new Map();
+  const addEntry = (item, isLocal = false) => {
+    if (!item || typeof item !== 'object') return;
+    const name = String(item.display_name || item.name || item.telegramUsername || 'Игрок').trim() || 'Игрок';
+    const telegramId = String(item.telegramId || item.telegram_id || item.user_id || item.userId || '');
+    const key = telegramId ? 'id:' + telegramId : 'name:' + name.toLocaleLowerCase();
+    const score = Math.max(0, Math.floor(Number(item.best_score ?? item.score) || 0));
+    const existing = entries.get(key);
+    if (!existing || score > existing.best_score){
+      entries.set(key, { display_name: name, best_score: score, telegramId, _local: isLocal });
+    } else if (isLocal && !existing._local) {
+      existing._local = true;
+      if (!existing.display_name || existing.display_name === 'Игрок') existing.display_name = name;
+    }
+  };
+  (Array.isArray(globalLeaderboard) ? globalLeaderboard : []).forEach(item => addEntry(item, false));
+  (Array.isArray(save.localLeaderboard) ? save.localLeaderboard : []).forEach(item => addEntry(item, true));
+  return Array.from(entries.values())
+    .sort((a, b) => b.best_score - a.best_score)
+    .slice(0, 100);
 }
 
 async function submitGlobalScore(value){
@@ -1023,8 +1045,7 @@ function goFull(){
     if (tg){
       if (tg.requestFullscreen) tg.requestFullscreen();
       else tg.expand();
-    }
-    if (document.fullscreenElement){
+    }    if (document.fullscreenElement){
       if (document.exitFullscreen) document.exitFullscreen();
     } else if (document.documentElement.requestFullscreen){
       document.documentElement.requestFullscreen().catch(()=>{});
@@ -1239,7 +1260,11 @@ function spawnPipe(lvl){
     const freeSpace = p.x - (previous.x + PIPE_W);
     if (freeSpace > 95*S){
       const midX = previous.x + PIPE_W + freeSpace/2;
-      const spawnedHazard = Math.random() < 0.24 ? spawnHazard(midX) : null;
+      const safeTop = Math.max(previous.gapY-previous.gap/2, p.gapY-p.gap/2) + 20*S;
+      const safeBottom = Math.min(previous.gapY+previous.gap/2, p.gapY+p.gap/2) - 20*S;
+      // Если проходы двух баррикад не пересекаются, бомбочку не создаём.
+      const spawnedHazard = safeTop < safeBottom && Math.random() < 0.24
+        ? spawnHazard(midX, (safeTop+safeBottom)/2) : null;
       // Собираемые звёздочки доступны на каждом уровне и дают +5 к игровому счёту.
       // Размещаем их так, чтобы они не пересекались с бомбочками.
       if (pipeCount % 2 === 0){
@@ -1263,10 +1288,10 @@ function spawnPipe(lvl){
   }
 }
 
-function spawnHazard(x){
-  // Между соседними баррикадами появляется бомбочка-препятствие.
-  const y = 90*S + Math.random()*Math.max(80*S, H-GROUND_H-180*S);
-  const hazard = {type:'cloud', x, y, rx:34*S, ry:27*S,
+function spawnHazard(x, gapCenter){
+  // Бомбочка появляется только в свободном проходе между верхней и нижней баррикадами.
+  const y = gapCenter;
+  const hazard = {type:'bomb', x, y, rx:19*S, ry:16*S, scale:0.72,
     phase:0, passed:false};
   hazards.push(hazard);
   return hazard;
@@ -1416,14 +1441,16 @@ function step(k){
     h.x -= speed*k;
     const dx=(plane.x-h.x)/h.rx, dy=(plane.y-h.y)/h.ry;
     if (hazardHit(h) && phaseT<=0){
-      // При столкновении бомба взрывается, разбрасывая огненные частицы.
-      for(let n=0;n<24;n++){
-        const a=Math.random()*Math.PI*2, speed=(1.2+Math.random()*3.2)*S;
+      // При столкновении бомбочка ярко взрывается: вспышка, ударная волна и осколки огня.
+      pushFx({x:h.x,y:h.y,vx:0,vy:0,life:12,max:12,type:'circle',r:30*S,col:'255,245,190'});
+      pushFx({x:h.x,y:h.y,vx:0,vy:0,life:20,max:20,type:'ring',r:8*S,col:'255,145,35'});
+      for(let n=0;n<32;n++){
+        const a=Math.random()*Math.PI*2, speed=(1.4+Math.random()*4.1)*S;
         pushFx({x:h.x,y:h.y,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,
-          life:18+Math.random()*16,max:34,type:'circle',r:(2+Math.random()*4)*S,
-          col:Math.random()<.5?'255,105,25':'255,210,65'});
+          life:18+Math.random()*18,max:36,type:'circle',r:(2+Math.random()*4.5)*S,
+          col:Math.random()<.55?'255,105,25':'255,210,65'});
       }
-      shakeT=Math.max(shakeT,9);
+      shakeT=Math.max(shakeT,12);
       haptic('heavy');
       hazards.splice(i,1);
       die();
@@ -1706,6 +1733,7 @@ function drawHazards(){
   for(const h of hazards){
     ctx.save();
     ctx.translate(h.x,h.y);
+    ctx.scale(h.scale || 0.72, h.scale || 0.72);
     ctx.rotate(Math.sin((t+h.phase)*.035)*.08);
     // Круглая чёрная бомбочка с фитилём и искрой.
     ctx.shadowColor='rgba(0,0,0,.38)'; ctx.shadowBlur=10*S; ctx.shadowOffsetY=4*S;
@@ -2016,8 +2044,7 @@ function drawMenu(){
   const x = W/2 - bw/2;
 
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = '#ffffff';
-  ctx.shadowColor = 'rgba(0,0,0,.9)';
+  ctx.fillStyle = '#ffffff';  ctx.shadowColor = 'rgba(0,0,0,.9)';
   ctx.shadowBlur = Math.max(3, 7*S);
   ctx.font = '800 ' + Math.round(Math.max(13, Math.min(18*S, H*.032))) + 'px Arial, sans-serif';
   ctx.fillText('Рекорд: ' + save.best, W/2, Math.max(18, y0-9*S));
@@ -2068,11 +2095,11 @@ function drawBriefing(){
   ctx.fillStyle = '#24485b';
   ctx.fillText('Каждая даёт +5 очков к твоему рекорду.', W/2, py+169*S);
   ctx.font = '700 ' + Math.round(17*S) + 'px Arial, sans-serif';
-  ctx.fillStyle = '#1685b5';
-  ctx.fillText('☁ Облачка', W/2, py+214*S);
+  ctx.fillStyle = '#b45309';
+  ctx.fillText('💣 Бомбочка', W/2, py+214*S);
   ctx.font = Math.round(14*S) + 'px Arial, sans-serif';
   ctx.fillStyle = '#24485b';
-  ctx.fillText('Облачка — препятствия. Облетай их, чтобы не столкнуться.', W/2, py+238*S);
+  ctx.fillText('Бомбочки между баррикадами взрываются при столкновении. Не касайся их!', W/2, py+238*S, pw-30*S);
   if (hasBarrierMotion || hasNarrowingGap) {
     ctx.font = '700 ' + Math.round(17*S) + 'px Arial, sans-serif';
     ctx.fillStyle = '#b45309';
@@ -2309,7 +2336,7 @@ function drawRecords(){
   const listBottom = H - 28*S;
   const listH = Math.max(80*S, listBottom - listY);
   const leaderboardRowH = 34*S;
-  const leaderboard = Array.isArray(globalLeaderboard) ? globalLeaderboard : [];
+  const leaderboard = getCombinedLeaderboard();
   const contentH = Math.max(listH, 34*S + leaderboard.length * leaderboardRowH);
   const maxScroll = Math.max(0, contentH - listH);
   leaderboardScroll = Math.max(0, Math.min(leaderboardScroll, maxScroll));
@@ -2343,7 +2370,7 @@ function drawRecords(){
   if (!leaderboard.length) {
     ctx.textAlign = 'center'; ctx.fillStyle = '#c7eaff';
     ctx.font = '700 ' + Math.round(Math.max(9*S, 8)) + 'px Arial, sans-serif';
-    const emptyMessage = leaderboardLoading ? 'Загрузка общего рейтинга…' : (leaderboardError || 'Пока нет результатов');
+    const emptyMessage = leaderboardLoading ? 'Загрузка рейтинга…' : (leaderboardError || 'Пока нет результатов');
     ctx.fillText(translateText(emptyMessage), leftX+colW/2, rowsTop+22*S, colW-16*S);
   }
   const firstIndex = Math.floor(leaderboardScroll / leaderboardRowH);
