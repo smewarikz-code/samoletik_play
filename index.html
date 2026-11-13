@@ -27,6 +27,52 @@ if (!window.Telegram) {
 }
 let pendingPack = null;
 
+ // ============ Глобальный рейтинг (Render API) ============
+const LEADERBOARD_API = 'https://samoletik-server.onrender.com';
+let globalLeaderboard = [];
+let leaderboardLoading = false;
+let leaderboardError = '';
+
+async function refreshGlobalLeaderboard(){
+  leaderboardLoading = true;
+  leaderboardError = '';
+  try {
+    const response = await fetch(LEADERBOARD_API + '/api/leaderboard?limit=100', {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    });
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const data = await response.json();
+    globalLeaderboard = Array.isArray(data.players) ? data.players : [];
+    leaderboardScroll = 0;
+  } catch (err) {
+    console.error('Не удалось загрузить глобальный рейтинг:', err);
+    leaderboardError = 'Не удалось загрузить общий рейтинг';
+  } finally {
+    leaderboardLoading = false;
+  }
+}
+
+async function submitGlobalScore(value){
+  if (!tg || !tg.initData) {
+    console.warn('Глобальный рейтинг доступен при запуске игры через Telegram Mini App.');
+    return;
+  }
+  try {
+    const response = await fetch(LEADERBOARD_API + '/api/score', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ initData: tg.initData, score: Math.max(0, Math.floor(Number(value) || 0)) })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || ('HTTP ' + response.status));
+    if (state === 'records') await refreshGlobalLeaderboard();
+  } catch (err) {
+    console.error('Не удалось отправить результат в глобальный рейтинг:', err);
+  }
+}
+
+
 if (window.Telegram && window.Telegram.WebApp) {
   tg = window.Telegram.WebApp;
   tg.ready();
@@ -936,7 +982,7 @@ function changePlayerName(){
 // Открывает Telegram-профиль игрока из таблицы рекордов.
 function openLeaderboardTelegramProfile(item){
   if (!item) return;
-  const username = String(item.telegramUsername || '').trim().replace(/^@/, '');
+  const username = String(item.username || item.telegramUsername || '').trim().replace(/^@/, '');
   const telegramId = String(item.telegramId || '').trim();
   if (username){
     const url = 'https://t.me/' + encodeURIComponent(username);
@@ -996,7 +1042,7 @@ cvs.addEventListener('pointermove', e => {
   const y = e.clientY - r.top;
   const listH = Math.max(80*S, H - 28*S - (90*S + 42*S));
   const rowH = 34*S;
-  const count = Array.isArray(save.localLeaderboard) ? save.localLeaderboard.length : 0;
+  const count = Array.isArray(globalLeaderboard) ? globalLeaderboard.length : 0;
   const maxScroll = Math.max(0, 34*S + count*rowH - listH);
   leaderboardScroll = Math.max(0, Math.min(maxScroll, leaderboardDrag.startScroll + (leaderboardDrag.startY-y)));
 });
@@ -1013,7 +1059,7 @@ cvs.addEventListener('pointerup', e=>{
     if (moved < 8*S && x >= lx && x <= lx+lw && y >= rowsTop && y <= listBottom){
       const rowH = 34*S;
       const index = Math.floor((y-rowsTop+leaderboardScroll)/rowH);
-      const entries = Array.isArray(save.localLeaderboard) ? save.localLeaderboard.slice().sort((a,b)=>(Number(b.score)||0)-(Number(a.score)||0)) : [];
+      const entries = Array.isArray(globalLeaderboard) ? globalLeaderboard : [];
       if (index >= 0 && index < entries.length) openLeaderboardTelegramProfile(entries[index]);
     }
   }
@@ -1035,7 +1081,7 @@ cvs.addEventListener('wheel', e => {
   const lx=12*S, lw=(W-24*S-10*S)/2, ly=132*S, lh=Math.max(80*S,H-28*S-ly);
   if (x>=lx && x<=lx+lw && y>=ly && y<=ly+lh) {
     e.preventDefault();
-    const count=Array.isArray(save.localLeaderboard)?save.localLeaderboard.length:0;
+    const count=Array.isArray(globalLeaderboard)?globalLeaderboard.length:0;
     const maxScroll=Math.max(0,34*S + count*34*S-lh);
     leaderboardScroll=Math.max(0,Math.min(maxScroll,leaderboardScroll+e.deltaY));
   }
@@ -1182,6 +1228,8 @@ function finishGame(win){
   save.localLeaderboard.sort((a,b) => (Number(b.score)||0) - (Number(a.score)||0));
   save.localLeaderboard = save.localLeaderboard.slice(0, 100);
   persist();
+  // Отправляем результат на сервер; сервер сохраняет только лучший счёт Telegram-пользователя.
+  submitGlobalScore(score);
   finishGame.earned = earnedStars;
 }
   
@@ -1855,7 +1903,7 @@ function drawMenu(){
   button(x, y0,                    bw, bh, 'Начать игру',  ()=>showBriefing(1), '#f5a623');
   button(x, y0 + (bh+gap),         bw, bh, 'Выбор уровня', ()=>{ state='levels'; page=Math.max(0, Math.floor((save.maxLevel-1)/20)); }, '#1f8fc9');
   button(x, y0 + (bh+gap)*2,       bw, bh, 'Магазин',      ()=>{ state='shop'; }, '#1f8fc9');
-  button(x, y0 + (bh+gap)*3,       bw, bh, 'Рейтинг',      ()=>{ state='records'; }, '#1f8fc9');
+  button(x, y0 + (bh+gap)*3,       bw, bh, 'Рейтинг',      ()=>{ state='records'; refreshGlobalLeaderboard(); }, '#1f8fc9');
   button(x, y0 + (bh+gap)*4,       bw, bh, 'Пополнить звёзды', ()=>{ state='topup'; }, '#f5a623');
   const fs = Math.max(27, Math.min(34*S, 42, W*.11));
   button(W - fs - 10, 10, fs, fs, '⛶', goFull, 'rgba(10,50,80,.72)');
@@ -2131,8 +2179,7 @@ function drawRecords(){
   const listBottom = H - 28*S;
   const listH = Math.max(80*S, listBottom - listY);
   const leaderboardRowH = 34*S;
-  const leaderboard = (Array.isArray(save.localLeaderboard) ? save.localLeaderboard : [])
-    .slice().sort((a,b) => (Number(b.score)||0) - (Number(a.score)||0));
+  const leaderboard = Array.isArray(globalLeaderboard) ? globalLeaderboard : [];
   const contentH = Math.max(listH, 34*S + leaderboard.length * leaderboardRowH);
   const maxScroll = Math.max(0, contentH - listH);
   leaderboardScroll = Math.max(0, Math.min(leaderboardScroll, maxScroll));
@@ -2168,7 +2215,8 @@ function drawRecords(){
   if (!leaderboard.length) {
     ctx.textAlign = 'center'; ctx.fillStyle = '#c7eaff';
     ctx.font = '700 ' + Math.round(Math.max(9*S, 8)) + 'px Arial, sans-serif';
-    ctx.fillText(translateText('Сыграйте игру, чтобы попасть в топ'), leftX+colW/2, rowsTop+22*S, colW-16*S);
+    const emptyMessage = leaderboardLoading ? 'Загрузка общего рейтинга…' : (leaderboardError || 'Пока нет результатов');
+    ctx.fillText(translateText(emptyMessage), leftX+colW/2, rowsTop+22*S, colW-16*S);
   }
   const firstIndex = Math.floor(leaderboardScroll / leaderboardRowH);
   const lastIndex = Math.min(leaderboard.length, Math.ceil((leaderboardScroll + visibleRowsH) / leaderboardRowH));
@@ -2207,12 +2255,12 @@ function drawRecords(){
       ctx.font = '800 ' + Math.round(Math.max(10*S, 9)) + 'px Arial, sans-serif';
       ctx.fillText(String(i+1), rankCol, rowCenterY, 12*S);
     }
-    let nm = String(item.name || 'Игрок');
+    let nm = String(item.display_name || item.name || 'Игрок');
     ctx.textAlign = 'left'; ctx.fillStyle = '#ffffff';
     ctx.font = '800 ' + Math.round(Math.max(10*S, 9)) + 'px Arial, sans-serif';
     const nameMaxW = Math.max(12*S, telegramColX - nameColX - 8*S);
     while (nm.length > 1 && ctx.measureText(nm).width > nameMaxW) nm = nm.slice(0,-1);
-    if (nm !== String(item.name || 'Игрок')) {
+    if (nm !== String(item.display_name || item.name || 'Игрок')) {
       while (nm.length > 1 && ctx.measureText(nm+'…').width > nameMaxW) nm = nm.slice(0,-1);
       nm += '…';
     }
@@ -2220,7 +2268,7 @@ function drawRecords(){
 
     // Отдельная колонка Telegram: username открывается как t.me/username,
     // а при его отсутствии показываем Telegram ID (переход зависит от клиента Telegram).
-    const tgName = String(item.telegramUsername || '').trim().replace(/^@/, '');
+    const tgName = String(item.username || item.telegramUsername || '').trim().replace(/^@/, '');
     const tgId = String(item.telegramId || '').trim();
     let tgLabel = tgName ? '@' + tgName : (tgId ? 'ID ' + tgId : '—');
     const tgMaxW = Math.max(12*S, scoreColX - telegramColX - 8*S);
@@ -2235,7 +2283,7 @@ function drawRecords(){
     ctx.fillText(tgLabel, telegramColX, yy+leaderboardRowH/2, tgMaxW);
     ctx.textAlign = 'right'; ctx.fillStyle = '#ffd34d';
     ctx.font = '900 ' + Math.round(Math.max(11*S, 10)) + 'px Arial, sans-serif';
-    ctx.fillText(String(Number(item.score)||0), scoreColX, yy+leaderboardRowH/2, colW*.25);
+    ctx.fillText(String(Number(item.best_score ?? item.score)||0), scoreColX, yy+leaderboardRowH/2, colW*.25);
   }
   ctx.restore();
   // Тонкий индикатор прокрутки появляется, когда строк больше, чем помещается.
@@ -2253,7 +2301,7 @@ function drawRecords(){
   ctx.fillText('Каждую субботу: сброс недельного рекорда, топа и уровней улучшений', leftX+colW/2, H-19*S, colW-8*S);
   ctx.font = Math.round(Math.max(8*S, 7)) + 'px Arial, sans-serif';
   ctx.fillStyle = '#c7eaff';
-  ctx.fillText(translateText('Локальный рейтинг этого устройства'), leftX+colW/2, H-8*S, colW-8*S);
+  ctx.fillText(translateText('Глобальный рейтинг игроков'), leftX+colW/2, H-8*S, colW-8*S);
   ctx.restore();
 
   // Правая таблица — личные достижения: берутся только из локального сохранения текущего игрока.
