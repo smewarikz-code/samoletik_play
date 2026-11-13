@@ -80,13 +80,11 @@ if (window.Telegram && window.Telegram.WebApp) {
   tg.onEvent('invoiceClosed', ev => {
     const status = ev && ev.status ? ev.status : ev;
     if (pendingPack && status === 'paid'){
-      save.stars += pendingPack.stars;
-      persist();
-      haptic('medium');
       pendingPack = null;
       state = 'menu';
+      claimPurchasedStars(6);
     } else {
-      pendingPack = null;   // отмена или ошибка — ничего не начисляем
+      pendingPack = null;
     }
   });
 }
@@ -94,44 +92,57 @@ if (window.Telegram && window.Telegram.WebApp) {
 
 /* ============ Магазин (Telegram Stars) ============ */
 const SHOP_ITEMS = [
-  { 
-    id: 'pack_50',  
-    title: '50 звёзд',  
-    stars: 50,  
-    price: 50,  
-    invoice: 'https://t.me/$rNLOUO7QqEsSHAAASSFMIXuaCuo' 
-  },
-  { 
-    id: 'pack_150', 
-    title: '150 звёзд', 
-    stars: 150, 
-    price: 100, 
-    invoice: 'https://t.me/$cLUOne7QqEsTHAAAJ4geWB1XpE0' 
-  },
-  { 
-    id: 'pack_250', 
-    title: '250 звёзд', 
-    stars: 250, 
-    price: 200, 
-    invoice: 'https://t.me/$bV33OO7QqEsUHAAAqUbLn5AahAQ' 
-  }
+  { id: 'pack_50', title: '50 звёзд', stars: 50, price: 50 },
+  { id: 'pack_150', title: '150 звёзд', stars: 150, price: 100 },
+  { id: 'pack_250', title: '250 звёзд', stars: 250, price: 200 }
 ];
 
-function buyStars(item){
-  if (!tg || !tg.openInvoice){
-    alert(translateText('Покупки доступны только в Telegram'));
-    return;
+async function claimPurchasedStars(retries = 1){
+  if (!tg || !tg.initData) return;
+  for (let attempt = 0; attempt < retries; attempt++){
+    try {
+      const response = await fetch(LEADERBOARD_API + '/api/stars/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: tg.initData })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || ('HTTP ' + response.status));
+      const amount = Math.max(0, Math.floor(Number(data.stars) || 0));
+      if (amount > 0){
+        save.stars += amount;
+        persist();
+        haptic('medium');
+        return amount;
+      }
+      if (attempt + 1 < retries) await new Promise(resolve => setTimeout(resolve, 1000));
+    } catch (err) {
+      console.error('Не удалось получить купленные звёзды:', err);
+      if (attempt + 1 < retries) await new Promise(resolve => setTimeout(resolve, 1000));
+    }
   }
-  if (item.invoice.startsWith('ССЫЛКА')) {
-    alert(translateText('Ссылка на оплату ещё не настроена. Нужно сгенерировать инвойс.'));
+  return 0;
+}
+
+async function buyStars(item){
+  if (!tg || !tg.openInvoice || !tg.initData){
+    alert(translateText('Покупки доступны только в Telegram'));
     return;
   }
   pendingPack = item;
   try {
-    tg.openInvoice(item.invoice);
+    const response = await fetch(LEADERBOARD_API + '/api/stars/invoice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ initData: tg.initData, packId: item.id })
+    });
+    const data = await response.json();
+    if (!response.ok || !data.invoiceLink) throw new Error(data.error || ('HTTP ' + response.status));
+    tg.openInvoice(data.invoiceLink);
   } catch(e){
     pendingPack = null;
-    alert(translateText('Ошибка открытия счёта: ') + e);
+    console.error('Не удалось создать счёт Telegram Stars:', e);
+    alert(translateText('Ошибка открытия счёта: ') + (e.message || e));
   }
 }
 /* ============ Экран пополнения ============ */
@@ -335,6 +346,8 @@ function load(){
 function persist(){ try { localStorage.setItem('tgPlaneSave3', JSON.stringify(save)); } catch(e){} }
 load();
 persist();
+// Забираем оплаченные, но ещё не начисленные покупки при повторном открытии игры.
+if (tg && tg.initData) claimPurchasedStars(1);
 
 
 /* ============ Масштаб и ресайз ============ */
