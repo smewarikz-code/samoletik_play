@@ -46,17 +46,22 @@ const LEADERBOARD_API = 'https://samoletik-server.onrender.com';
 
 // ============ Счётчик игроков онлайн ============
 const onlineCounter = document.getElementById('online-counter');
+function createPresenceId() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 3 | 8)).toString(16);
+  });
+}
 let presenceSessionId = '';
 try {
   presenceSessionId = sessionStorage.getItem('samoletikPresenceId') || '';
   if (!presenceSessionId) {
-    presenceSessionId = (window.crypto && crypto.randomUUID)
-      ? crypto.randomUUID()
-      : 's-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+    presenceSessionId = createPresenceId();
     sessionStorage.setItem('samoletikPresenceId', presenceSessionId);
   }
 } catch (e) {
-  presenceSessionId = 's-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+  presenceSessionId = createPresenceId();
 }
 
 async function refreshOnlineCount() {
