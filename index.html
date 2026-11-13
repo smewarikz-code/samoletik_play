@@ -389,7 +389,6 @@ if (tg && tg.initData && !save.myScoreResetV1) {
   save.best = 0;
   save.weeklyBest = 0;
   save.localLeaderboard = [];
-  save.myScoreResetV1 = true;
   persist();
   fetch(LEADERBOARD_API + '/api/score/reset', {
     method: 'POST',
@@ -398,6 +397,10 @@ if (tg && tg.initData && !save.myScoreResetV1) {
   }).then(r => {
     if (!r.ok) throw new Error('score reset failed');
     return r.json();
+  }).then(() => {
+    save.myScoreResetV1 = true;
+    persist();
+    refreshGlobalLeaderboard();
   }).catch(err => console.error('Не удалось сбросить личный рейтинг:', err));
 }
 persist();
