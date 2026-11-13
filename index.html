@@ -137,7 +137,8 @@ async function claimPurchasedStars(retries = 1){
           alert('Проверка оплаты: серверный баланс — ' + status.server_balance +
             ' игровых звёзд. Последний счёт: ' + latest.game_stars +
             ' звёзд, статус — ' + latest.status +
-            ', запись платежа — ' + (latest.payment_recorded ? 'есть' : 'нет') + '.');
+            ', запись платежа — ' + (latest.payment_recorded ? 'есть' : 'нет') +
+            ', восстановление отмечено — ' + (latest.recovery_marked ? 'да' : 'нет') + '.');
         } else {
           alert('Проверка оплаты: сервер не нашёл счетов для этого аккаунта.');
         }
