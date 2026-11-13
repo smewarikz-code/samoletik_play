@@ -54,6 +54,31 @@ async function refreshGlobalLeaderboard(){
   }
 }
 
+// Объединяем серверный рейтинг с результатами на этом устройстве.
+// Локальные результаты остаются видны даже вне Telegram или при недоступности API.
+function getCombinedLeaderboard(){
+  const entries = new Map();
+  const addEntry = (item, isLocal = false) => {
+    if (!item || typeof item !== 'object') return;
+    const name = String(item.display_name || item.name || item.telegramUsername || 'Игрок').trim() || 'Игрок';
+    const telegramId = String(item.telegramId || item.telegram_id || item.user_id || item.userId || '');
+    const key = telegramId ? 'id:' + telegramId : 'name:' + name.toLocaleLowerCase();
+    const score = Math.max(0, Math.floor(Number(item.best_score ?? item.score) || 0));
+    const existing = entries.get(key);
+    if (!existing || score > existing.best_score){
+      entries.set(key, { display_name: name, best_score: score, telegramId, _local: isLocal });
+    } else if (isLocal && !existing._local) {
+      existing._local = true;
+      if (!existing.display_name || existing.display_name === 'Игрок') existing.display_name = name;
+    }
+  };
+  (Array.isArray(globalLeaderboard) ? globalLeaderboard : []).forEach(item => addEntry(item, false));
+  (Array.isArray(save.localLeaderboard) ? save.localLeaderboard : []).forEach(item => addEntry(item, true));
+  return Array.from(entries.values())
+    .sort((a, b) => b.best_score - a.best_score)
+    .slice(0, 100);
+}
+
 async function submitGlobalScore(value){
   if (!tg || !tg.initData) {
     console.warn('Глобальный рейтинг доступен при запуске игры через Telegram Mini App.');
@@ -972,8 +997,7 @@ function goFull(){
     if (tg){
       if (tg.requestFullscreen) tg.requestFullscreen();
       else tg.expand();
-    }
-    if (document.fullscreenElement){
+    }    if (document.fullscreenElement){
       if (document.exitFullscreen) document.exitFullscreen();
     } else if (document.documentElement.requestFullscreen){
       document.documentElement.requestFullscreen().catch(()=>{});
@@ -997,7 +1021,8 @@ function buySkin(id){
     save.skin = id;
     persist(); 
     haptic('medium');
-  } else {    haptic('rigid'); // вибрация «недостаточно валюты»
+  } else {
+    haptic('rigid'); // вибрация «недостаточно валюты»
   }
 }
 
@@ -1971,8 +1996,7 @@ function drawMenu(){
   const x = W/2 - bw/2;
 
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = '#ffffff';
-  ctx.shadowColor = 'rgba(0,0,0,.9)';
+  ctx.fillStyle = '#ffffff';  ctx.shadowColor = 'rgba(0,0,0,.9)';
   ctx.shadowBlur = Math.max(3, 7*S);
   ctx.font = '800 ' + Math.round(Math.max(13, Math.min(18*S, H*.032))) + 'px Arial, sans-serif';
   ctx.fillText('Рекорд: ' + save.best, W/2, Math.max(18, y0-9*S));
@@ -1996,7 +2020,8 @@ function drawMenu(){
 }
 function drawBriefing(){
   const pw = Math.min(W-28*S, 420*S), ph = Math.min(H-40*S, 370*S);
-  const px = (W-pw)/2, py = (H-ph)/2;  const hasBarrierMotion = briefingLevel % 2 === 0;
+  const px = (W-pw)/2, py = (H-ph)/2;
+  const hasBarrierMotion = briefingLevel % 2 === 0;
   const hasNarrowingGap = briefingLevel % 4 === 0;
   ctx.save();
   ctx.fillStyle = 'rgba(5,25,42,.78)';
@@ -2263,7 +2288,7 @@ function drawRecords(){
   const listBottom = H - 28*S;
   const listH = Math.max(80*S, listBottom - listY);
   const leaderboardRowH = 34*S;
-  const leaderboard = Array.isArray(globalLeaderboard) ? globalLeaderboard : [];
+  const leaderboard = getCombinedLeaderboard();
   const contentH = Math.max(listH, 34*S + leaderboard.length * leaderboardRowH);
   const maxScroll = Math.max(0, contentH - listH);
   leaderboardScroll = Math.max(0, Math.min(leaderboardScroll, maxScroll));
@@ -2297,7 +2322,7 @@ function drawRecords(){
   if (!leaderboard.length) {
     ctx.textAlign = 'center'; ctx.fillStyle = '#c7eaff';
     ctx.font = '700 ' + Math.round(Math.max(9*S, 8)) + 'px Arial, sans-serif';
-    const emptyMessage = leaderboardLoading ? 'Загрузка общего рейтинга…' : (leaderboardError || 'Пока нет результатов');
+    const emptyMessage = leaderboardLoading ? 'Загрузка рейтинга…' : (leaderboardError || 'Пока нет результатов');
     ctx.fillText(translateText(emptyMessage), leftX+colW/2, rowsTop+22*S, colW-16*S);
   }
   const firstIndex = Math.floor(leaderboardScroll / leaderboardRowH);
