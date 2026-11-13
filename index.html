@@ -496,52 +496,96 @@ resize();
 /* ============ Спрайт Самолётик: Эра приключений ============ */
 function planeSprite(skinId){
   if (planeCache[skinId]) return planeCache[skinId];
-  const sk=SKINS[skinId];
-  const c=document.createElement('canvas'); c.width=c.height=180;
-  const g=c.getContext('2d');
-  g.scale(3,3); g.translate(30,30); g.lineJoin='round'; g.lineCap='round';
-  if(sk.phase) g.globalAlpha=.78;
+  const sk = SKINS[skinId];
+  const c = document.createElement('canvas');
+  c.width = c.height = 120;
+  const g = c.getContext('2d');
+  g.lineJoin = 'round';
+  g.lineCap = 'round';
+  g.save();
+  if (sk.phase) g.globalAlpha = .55;
+  g.scale(3,3);
+  g.translate(20,20);
 
-  // Возвращаем прежний простой мультяшный стиль самолётиков,
-  // но рисуем их сбоку. Один и тот же спрайт используется в магазине и полёте.
-  const body=g.createLinearGradient(0,-5,0,5);
-  body.addColorStop(0,'#ffffff');body.addColorStop(.2,sk.body);
-  body.addColorStop(.68,sk.shade);body.addColorStop(1,'#263746');
-  const wing=g.createLinearGradient(0,-8,0,8);
-  wing.addColorStop(0,'#ffffff');wing.addColorStop(.4,sk.body);wing.addColorStop(1,sk.shade);
-  function shape(points,fill,stroke=sk.edge,width=.8){
-    g.beginPath();g.moveTo(points[0][0],points[0][1]);
-    for(let i=1;i<points.length;i++)g.lineTo(points[i][0],points[i][1]);
-    g.closePath();g.fillStyle=fill;g.fill();g.lineWidth=width;g.strokeStyle=stroke;g.stroke();
+  // Мягкая тень и свечение — силуэт остаётся классическим телеграм-самолётиком.
+  g.shadowColor = sk.edge;
+  g.shadowBlur = 2.8;
+  g.shadowOffsetY = 1;
+
+  const body = g.createLinearGradient(-10,-13,12,12);
+  body.addColorStop(0, '#ffffff');
+  body.addColorStop(.22, sk.body);
+  body.addColorStop(.72, sk.body);
+  body.addColorStop(1, sk.shade);
+
+  g.beginPath();
+  g.moveTo(17,0);
+  g.lineTo(-17,-13);
+  g.lineTo(-7,0);
+  g.lineTo(-17,13);
+  g.closePath();
+  g.fillStyle = body;
+  g.fill();
+  g.shadowBlur = 0;
+  g.shadowOffsetY = 0;
+  g.lineWidth = 1.8;
+  g.strokeStyle = sk.edge;
+  g.stroke();
+
+  // Нижняя грань — лёгкий объём, без изменения узнаваемой формы.
+  g.beginPath();
+  g.moveTo(17,0);
+  g.lineTo(-17,13);
+  g.lineTo(-7,0);
+  g.closePath();
+  const lower = g.createLinearGradient(-14,0,10,10);
+  lower.addColorStop(0, sk.shade);
+  lower.addColorStop(1, sk.edge);
+  g.globalAlpha = sk.phase ? .55 : .88;
+  g.fillStyle = lower;
+  g.fill();
+  g.globalAlpha = sk.phase ? .55 : 1;
+
+  // Светлая верхняя грань и тонкий центральный блик.
+  g.beginPath();
+  g.moveTo(17,0);
+  g.lineTo(-17,-13);
+  g.lineTo(-7,0);
+  g.closePath();
+  g.fillStyle = 'rgba(255,255,255,.24)';
+  g.fill();
+
+  g.beginPath();
+  g.moveTo(17,0);
+  g.lineTo(-7,0);
+  g.lineTo(-17,-13);
+  g.strokeStyle = 'rgba(255,255,255,.62)';
+  g.lineWidth = .8;
+  g.stroke();
+
+  // Маленький блик у носа добавляет аккуратный глянцевый акцент.
+  g.beginPath();
+  g.arc(11.8,-.8,1.15,0,Math.PI*2);
+  g.fillStyle = 'rgba(255,255,255,.82)';
+  g.fill();
+
+  if (sk.spark){
+    g.fillStyle = '#ffffff';
+    const pts = [[6,-6],[-8,-7],[-11,7],[2,5]];
+    for (const pt of pts){
+      g.beginPath();
+      g.moveTo(pt[0],pt[1]-2.2);
+      g.lineTo(pt[0]+1.4,pt[1]);
+      g.lineTo(pt[0],pt[1]+2.2);
+      g.lineTo(pt[0]-1.4,pt[1]);
+      g.closePath();
+      g.fill();
+    }
   }
-  function line(points,color,width){
-    g.beginPath();g.moveTo(points[0][0],points[0][1]);
-    for(let i=1;i<points.length;i++)g.lineTo(points[i][0],points[i][1]);
-    g.strokeStyle=color;g.lineWidth=width;g.stroke();
-  }
-  // Простое цельное крыло и хвост — как у первоначального игрового самолётика.
-  shape([[-8,-1],[-18,-9],[-23,-9],[-17,-1],[-23,0],[-17,1],[-23,9],[-18,9],[-8,1]],wing);
-  shape([[-17,-1],[-23,-5],[-21,-5],[-13,-1]],sk.shade);
-  shape([[-17,1],[-23,5],[-21,5],[-13,1]],sk.shade);
-  // Тонкий фюзеляж с округлым носом и хвостом.
-  g.save();g.shadowColor='rgba(0,0,0,.28)';g.shadowBlur=3;g.shadowOffsetY=1;
-  g.beginPath();g.moveTo(27,0);g.quadraticCurveTo(24,-3,18,-3);
-  g.lineTo(-17,-2.2);g.quadraticCurveTo(-22,0,-17,2.2);
-  g.lineTo(18,3);g.quadraticCurveTo(24,3,27,0);g.closePath();
-  g.fillStyle=body;g.fill();g.shadowColor='transparent';
-  g.strokeStyle=sk.edge;g.lineWidth=.9;g.stroke();g.restore();
-  line([[21,-.8],[-16,-.8]],'rgba(255,255,255,.72)',.65);
-  // Кабина пилота и небольшой хвостовой стабилизатор.
-  shape([[17,-2.2],[13,-4.4],[8,-4],[6,-2]],'#17496b','#d9f5ff',.6);
-  shape([[-16,-1.5],[-22,-6],[-19,-6],[-11,-1.5]],sk.body,sk.edge,.7);
-  shape([[-16,1.5],[-22,6],[-19,6],[-11,1.5]],sk.shade,sk.edge,.7);
-  // Небольшое шасси, чтобы боковой ракурс читался в полёте.
-  line([[0,2],[1,5]],'#536b79',.7);
-  g.beginPath();g.arc(1,6,1,0,Math.PI*2);g.fillStyle='#263746';g.fill();
-  if(sk.spark){g.fillStyle='#fff';for(const pt of [[-3,-7],[10,5],[-11,7]]){g.beginPath();g.arc(pt[0],pt[1],.8,0,Math.PI*2);g.fill();}}
-  g.globalAlpha=1;planeCache[skinId]=c;return c;
+  g.restore();
+  planeCache[skinId] = c;
+  return c;
 }
-
 /* ============ Облако ============ */
 function buildTiles(){
   const c=document.createElement('canvas'); c.width=200; c.height=120;
