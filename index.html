@@ -1127,12 +1127,60 @@ function roundRect(x,y,w,h,r){
   ctx.closePath();
 }
 function button(x,y,w,h,label,action,fill,textColor){
-  ctx.fillStyle = fill || '#2AABEE';
-  roundRect(x,y,w,h,Math.min(22*S,h/2)); ctx.fill();
-  ctx.fillStyle = textColor || '#fff';
-  ctx.font = '700 ' + Math.round(Math.max(15*S,13)) + 'px Arial, sans-serif';
+  // Единый стиль кнопок под логотип: глубокий синий, золотая окантовка,
+  // глянцевый блик и объёмная тень. Золотые CTA сохраняют акцентный цвет.
+  const gold = (fill || '').toLowerCase().includes('f5a623') || (fill || '').toLowerCase().includes('20a56b');
+  const r = Math.min(22*S, h/2);
+  ctx.save();
+
+  // Мягкая тень для объёма
+  ctx.shadowColor = 'rgba(0, 8, 35, .72)';
+  ctx.shadowBlur = Math.max(5, 10*S);
+  ctx.shadowOffsetY = Math.max(2, 3*S);
+  const base = ctx.createLinearGradient(0, y, 0, y+h);
+  if (gold) {
+    base.addColorStop(0, '#fff18a');
+    base.addColorStop(.22, '#ffc52e');
+    base.addColorStop(.62, '#f28a08');
+    base.addColorStop(1, '#b94a05');
+  } else {
+    base.addColorStop(0, '#67d7ff');
+    base.addColorStop(.18, '#168fe5');
+    base.addColorStop(.58, '#0754b5');
+    base.addColorStop(1, '#082b70');
+  }
+  ctx.fillStyle = base;
+  roundRect(x, y, w, h, r); ctx.fill();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+
+  // Золотая окантовка как у эмблемы
+  ctx.lineWidth = Math.max(1.5, 2*S);
+  ctx.strokeStyle = gold ? '#fff2a6' : '#ffca3a';
+  roundRect(x + .5*S, y + .5*S, w - 1*S, h - 1*S, r); ctx.stroke();
+  ctx.lineWidth = Math.max(1, 1*S);
+  ctx.strokeStyle = 'rgba(255,255,255,.72)';
+  roundRect(x + 3*S, y + 3*S, w - 6*S, h - 6*S, Math.max(2, r-3*S)); ctx.stroke();
+
+  // Верхний глянцевый блик
+  const gloss = ctx.createLinearGradient(0, y+2*S, 0, y+h*.56);
+  gloss.addColorStop(0, 'rgba(255,255,255,.48)');
+  gloss.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gloss;
+  roundRect(x+3*S, y+3*S, w-6*S, Math.max(3, h*.48), Math.max(2, r-3*S)); ctx.fill();
+
+  // Контрастная надпись с лёгкой тёмной обводкой
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(label, x+w/2, y+h/2+1);
+  const fontSize = Math.round(Math.max(13*S, Math.min(18*S, h*.48)));
+  ctx.font = '800 ' + fontSize + 'px Arial, sans-serif';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = Math.max(2, 3*S);
+  ctx.strokeStyle = gold ? 'rgba(91,38,0,.9)' : 'rgba(2,20,62,.95)';
+  ctx.strokeText(label, x+w/2, y+h/2+1*S, Math.max(10, w-14*S));
+  ctx.fillStyle = textColor || '#ffffff';
+  ctx.shadowColor = 'rgba(0,0,0,.55)';
+  ctx.shadowBlur = 2*S;
+  ctx.fillText(label, x+w/2, y+h/2+1*S, Math.max(10, w-14*S));
+  ctx.restore();
   if (action) uiButtons.push({x,y,w,h,action});
 }
 function panel(x,y,w,h){
@@ -1514,7 +1562,7 @@ function drawMenu(){
   ctx.fillText('Рекорд: ' + save.best, W/2, Math.max(18, y0-9*S));
   ctx.shadowBlur = 0;
 
-  button(x, y0,                    bw, bh, 'Начать игру',  ()=>showBriefing(1));
+  button(x, y0,                    bw, bh, 'Начать игру',  ()=>showBriefing(1), '#f5a623');
   button(x, y0 + (bh+gap),         bw, bh, 'Выбор уровня', ()=>{ state='levels'; page=Math.max(0, Math.floor((save.maxLevel-1)/20)); }, '#1f8fc9');
   button(x, y0 + (bh+gap)*2,       bw, bh, 'Магазин',      ()=>{ state='shop'; }, '#1f8fc9');
   button(x, y0 + (bh+gap)*3,       bw, bh, 'Рекорды',      ()=>{ state='records'; }, '#1f8fc9');
@@ -1601,27 +1649,30 @@ function drawLevels(){
     const unlocked = lvl <= save.maxLevel;
     if (unlocked){
       const th = themeOf(lvl);
-      ctx.fillStyle = th.skyTop;
-      roundRect(cx,cy,cw,ch,10*S); ctx.fill();
-      ctx.strokeStyle = lvl === save.maxLevel ? '#ff9a3c' : 'rgba(255,255,255,.6)';
-      ctx.lineWidth = 2*S;
-      roundRect(cx,cy,cw,ch,10*S); ctx.stroke();
-      ctx.fillStyle = '#0b3a55';
-      ctx.font = '700 ' + Math.round(20*S) + 'px Arial, sans-serif';
+      // Уровни оформлены в той же синей эмали с золотой окантовкой,
+      // что и основные кнопки; текущий уровень получает золотой акцент.
+      button(cx, cy, cw, ch, String(lvl), (l=>()=>showBriefing(l))(lvl),
+        lvl === save.maxLevel ? '#f5a623' : '#1f8fc9');
+      ctx.save();
+      ctx.font = Math.round(Math.max(8*S, 10*S)) + 'px Arial, sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(lvl, cx+cw/2, cy+ch/2-6*S);
-      ctx.font = Math.round(10*S) + 'px Arial, sans-serif';
-      ctx.fillStyle = 'rgba(11,58,85,.7)';
-      ctx.fillText(translateText(th.name), cx+cw/2, cy+ch/2+11*S);
-      const lx = cx, ly = cy, lw2 = cw, lh2 = ch;
-      uiButtons.push({x:lx,y:ly,w:lw2,h:lh2,action:(l=>()=>showBriefing(l))(lvl)});
+      ctx.fillStyle = 'rgba(255,255,255,.92)';
+      ctx.shadowColor = 'rgba(0,15,55,.9)'; ctx.shadowBlur = 2*S;
+      ctx.fillText(translateText(th.name), cx+cw/2, cy+ch*.76, cw-8*S);
+      ctx.restore();
     } else {
-      ctx.fillStyle = 'rgba(120,130,140,.55)';
+      ctx.save();
+      const locked = ctx.createLinearGradient(0,cy,0,cy+ch);
+      locked.addColorStop(0,'#52647b'); locked.addColorStop(1,'#1c2e4c');
+      ctx.fillStyle = locked;
       roundRect(cx,cy,cw,ch,10*S); ctx.fill();
-      ctx.fillStyle = '#fff';
-      ctx.font = Math.round(16*S) + 'px Arial, sans-serif';
+      ctx.strokeStyle = 'rgba(255,205,75,.45)'; ctx.lineWidth = 1.5*S;
+      roundRect(cx,cy,cw,ch,10*S); ctx.stroke();
+      ctx.fillStyle = '#e8edf7';
+      ctx.font = '800 ' + Math.round(16*S) + 'px Arial, sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('🔒 ' + lvl, cx+cw/2, cy+ch/2);
+      ctx.restore();
     }
   }
 
@@ -1669,29 +1720,14 @@ function drawShop(){
 
     const bx = x + w - btnW - 10*S, by = y + (rowH - btnH)/2;
     if (equipped){
-      ctx.fillStyle = '#7bbd8d';
-      roundRect(bx, by, btnW, btnH, 18*S); ctx.fill();
-      ctx.fillStyle = '#fff';
-      ctx.font = '700 ' + Math.round(Math.max(14*S,12)) + 'px Arial, sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('Выбран', bx+btnW/2, by+btnH/2+1);
+      button(bx, by, btnW, btnH, 'Выбран', null, '#f5a623');
     } else if (owned){
       button(bx, by, btnW, btnH, 'Выбрать', (i=>()=>buySkin(i))(id), '#1f8fc9');
     } else {
       const afford = save.stars >= sk.price;
-      ctx.fillStyle = afford ? '#2fbf6b' : '#9aa7ae';
-      roundRect(bx, by, btnW, btnH, 18*S); ctx.fill();
-
-      /* цена — по центру кнопки */
-      ctx.fillStyle = '#fff';
-      ctx.font = '700 ' + Math.round(Math.max(14*S,12)) + 'px Arial, sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(String(sk.price), bx + btnW/2, by + btnH/2 + 1);
-
-      /* звезда Telegram — справа */
-      drawTelegramStar(bx + btnW - 16*S, by + btnH/2, 9*S);
-
-      uiButtons.push({x:bx, y:by, w:btnW, h:btnH, action:(i=>()=>buySkin(i))(id)});
+      // Цена — полноценная кнопка в общем стиле; недоступная покупка приглушена.
+      button(bx, by, btnW, btnH, String(sk.price) + ' ⭐',
+        (i=>()=>buySkin(i))(id), afford ? '#1f8fc9' : '#5b6474', '#ffffff');
     }
     y += rowH + 10*S;
   }
@@ -1711,55 +1747,75 @@ function wrapText(text, x, y, maxW, lineH){
 }
 
 function drawRecords(){
+  // Экран рекордов в едином золотисто-синем стиле логотипа.
+  const card = (cx, cy, cw, ch, accent=false) => {
+    ctx.save();
+    const g = ctx.createLinearGradient(0, cy, 0, cy+ch);
+    if (accent) {
+      g.addColorStop(0, 'rgba(24,105,178,.97)');
+      g.addColorStop(1, 'rgba(4, thirty, 91, .98)'.replace('thirty','30'));
+    } else {
+      g.addColorStop(0, 'rgba(15,75,132,.96)');
+      g.addColorStop(1, 'rgba(4,30,76,.97)');
+    }
+    ctx.fillStyle = g;
+    roundRect(cx, cy, cw, ch, 14*S); ctx.fill();
+    ctx.lineWidth = Math.max(1.5, 2*S);
+    ctx.strokeStyle = '#f6bd35';
+    roundRect(cx+.5*S, cy+.5*S, cw-1*S, ch-1*S, 14*S); ctx.stroke();
+    ctx.lineWidth = Math.max(1, 1*S);
+    ctx.strokeStyle = 'rgba(255,255,255,.45)';
+    roundRect(cx+3*S, cy+3*S, cw-6*S, ch-6*S, 11*S); ctx.stroke();
+    const gloss = ctx.createLinearGradient(0, cy, 0, cy+ch*.6);
+    gloss.addColorStop(0, 'rgba(255,255,255,.22)');
+    gloss.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = gloss;
+    roundRect(cx+4*S, cy+4*S, cw-8*S, ch*.48, 10*S); ctx.fill();
+    ctx.restore();
+  };
+
+  ctx.save();
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = '#0b4a6f';
-  ctx.font = '800 ' + Math.round(Math.min(30*S,26)) + 'px Arial, sans-serif';
+  ctx.shadowColor = 'rgba(0,0,0,.65)'; ctx.shadowBlur = 7*S;
+  ctx.fillStyle = '#ffd34d';
+  ctx.font = '900 ' + Math.round(Math.min(30*S,26)) + 'px Arial, sans-serif';
+  ctx.lineJoin = 'round'; ctx.lineWidth = 3*S; ctx.strokeStyle = '#713b05';
+  ctx.strokeText('Рекорды', W/2, 52*S);
   ctx.fillText('Рекорды', W/2, 52*S);
-  button(12*S, 26*S, 92*S, 34*S, '← Меню', toMenu, '#5b7a8c');
+  ctx.restore();
+  button(12*S, 26*S, 92*S, 34*S, '← Меню', toMenu, '#1f8fc9');
 
   const w = Math.min(340*S, W - 32*S), x = (W - w)/2;
+  const tableY = 90*S, th = 60*S;
+  card(x, tableY, w, th, true);
 
-  /* --- Таблица: имя игрока и недельный рекорд --- */
-  const th = 60*S;                      // высота таблицы
-  panel(x, 90*S, w, th);
-
-  // Шапка
-  ctx.font = Math.round(Math.max(11*S,9)) + 'px Arial, sans-serif';
+  // Заголовки таблицы
+  ctx.save();
+  ctx.font = '900 ' + Math.round(Math.max(11*S,9)) + 'px Arial, sans-serif';
   ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = '#5b7a8c';
+  ctx.fillStyle = '#ffe08a';
   ctx.textAlign = 'left';
-  ctx.fillText('ИГРОК', x+16*S, 90*S + 18*S);
+  ctx.fillText('ИГРОК', x+16*S, tableY + 18*S);
   ctx.textAlign = 'right';
-  ctx.fillText('НЕДЕЛЬНЫЙ РЕКОРД', x+w-16*S, 90*S + 18*S);
+  ctx.fillText('НЕДЕЛЬНЫЙ РЕКОРД', x+w-16*S, tableY + 18*S);
+  ctx.strokeStyle = 'rgba(255,211,77,.75)'; ctx.lineWidth = 1.5*S;
+  ctx.beginPath(); ctx.moveTo(x+12*S, tableY+24*S); ctx.lineTo(x+w-12*S, tableY+24*S); ctx.stroke();
 
-  // Разделительная линия
-  ctx.strokeStyle = 'rgba(42,171,238,.35)';
-  ctx.lineWidth = 1.5*S;
-  ctx.beginPath();
-  ctx.moveTo(x+12*S, 90*S + 24*S);
-  ctx.lineTo(x+w-12*S, 90*S + 24*S);
-  ctx.stroke();
-
-  // Строка с данными
-  ctx.fillStyle = '#0b4a6f';
-  ctx.font = '700 ' + Math.round(Math.max(16*S,14)) + 'px Arial, sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText(save.playerName, x+16*S, 90*S + 46*S, w - 150*S);   // имя
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#2fbf6b';
-  ctx.fillText(String(save.weeklyBest), x+w-16*S, 90*S + 46*S);    // рекорд
-
-  // Тап по имени — сменить (только в браузере; в Telegram имя берётся из профиля)
+  ctx.font = '800 ' + Math.round(Math.max(16*S,14)) + 'px Arial, sans-serif';
+  ctx.textAlign = 'left'; ctx.fillStyle = '#ffffff';
+  ctx.fillText(save.playerName, x+16*S, tableY+46*S, w-150*S);
+  ctx.textAlign = 'right'; ctx.fillStyle = '#ffd34d';
+  ctx.fillText(String(save.weeklyBest), x+w-16*S, tableY+46*S);
   if (!tg){
-    ctx.fillStyle = '#5b7a8c';
+    ctx.fillStyle = '#c7eaff';
     ctx.font = Math.round(Math.max(10*S,8)) + 'px Arial, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText('коснитесь, чтобы сменить имя', x+16*S, 90*S + th - 4*S);
-    uiButtons.push({x, y:90*S, w, h:th, action:changePlayerName});
+    ctx.fillText('коснитесь, чтобы сменить имя', x+16*S, tableY+th-4*S);
+    uiButtons.push({x, y:tableY, w, h:th, action:changePlayerName});
   }
+  ctx.restore();
 
-  /* --- Обычные строки статистики ниже --- */
-  const y0 = 90*S + th + 14*S, rh = 52*S;
+  const y0 = tableY + th + 14*S, rh = 52*S;
   const rows = [
     ['Лучший счёт', save.best],
     ['Открыто уровней', save.maxLevel + ' / ' + MAX_LEVEL],
@@ -1768,18 +1824,21 @@ function drawRecords(){
     ['Самолётик: Эра приключений', SKINS[save.skin].name]
   ];
   for (let i=0;i<rows.length;i++){
-    panel(x, y0 + i*(rh+8*S), w, rh);
-    ctx.fillStyle = '#5b7a8c';
-    ctx.font = Math.round(Math.max(14*S,12)) + 'px Arial, sans-serif';
-    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText(rows[i][0], x+16*S, y0 + i*(rh+8*S) + rh/2);
-    ctx.fillStyle = '#0b4a6f';
-    ctx.font = '700 ' + Math.round(Math.max(15*S,13)) + 'px Arial, sans-serif';
+    const yy = y0 + i*(rh+8*S);
+    card(x, yy, w, rh, false);
+    ctx.save();
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#e5f4ff';
+    ctx.font = '800 ' + Math.round(Math.max(14*S,12)) + 'px Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(rows[i][0], x+16*S, yy+rh/2, w*.58);
+    ctx.fillStyle = '#ffd34d';
+    ctx.font = '900 ' + Math.round(Math.max(15*S,13)) + 'px Arial, sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText(String(rows[i][1]), x+w-16*S, y0 + i*(rh+8*S) + rh/2);
+    ctx.fillText(String(rows[i][1]), x+w-16*S, yy+rh/2, w*.38);
+    ctx.restore();
   }
 }
-
 function drawPause(){
   ctx.fillStyle = 'rgba(10,30,50,.45)'; ctx.fillRect(0,0,W,H);
   const pw = Math.min(300*S, W-40), ph = 170*S;
