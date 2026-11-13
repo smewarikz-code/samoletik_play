@@ -273,20 +273,9 @@ def claim_stars():
     try:
         with get_connection() as conn:
             ensure_schema(conn)
-            recovered = conn.execute("""
-                INSERT INTO star_recoveries (payload, telegram_id, game_stars)
-                SELECT p.payload, p.telegram_id, p.game_stars
-                FROM star_payments p
-                WHERE p.telegram_id = %s
-                ON CONFLICT (payload) DO NOTHING
-                RETURNING game_stars
-            """, (player["telegram_id"],)).fetchall()
-            recovered_total = sum(int(item["game_stars"]) for item in recovered)
-            if recovered_total:
-                conn.execute("""
-                    UPDATE players SET stars_balance = stars_balance + %s
-                    WHERE telegram_id = %s
-                """, (recovered_total, player["telegram_id"]))
+            # Successful payments are credited exactly once in the Telegram webhook.
+            # Do not add star_payments again here: that caused duplicate credits.
+            recovered_total = 0
             conn.execute("""
                 INSERT INTO players (telegram_id, display_name, username, best_score)
                 VALUES (%s, %s, %s, 0)
