@@ -2479,13 +2479,13 @@ function drawRecords(){
   const noticeTop = startY + rows.length*(rowH+rowGap) + 8*S;
   ctx.save();
   ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-  ctx.fillStyle = '#ffe08a';
-  ctx.font = '900 ' + Math.round(Math.max(12*S, 11)) + 'px Arial, sans-serif';
+  ctx.fillStyle = '#ff3030';
+  ctx.font = '900 ' + Math.round(Math.max(16*S, 15)) + 'px Arial, sans-serif';
   ctx.shadowColor = 'rgba(0,0,0,.65)'; ctx.shadowBlur = 4*S;
   ctx.fillText('Прочитай!', rightX+colW/2, noticeTop, colW-10*S);
   ctx.shadowBlur = 0;
-  ctx.fillStyle = '#fff2c9';
-  ctx.font = '700 ' + Math.round(Math.max(10*S, 9)) + 'px Arial, sans-serif';
+  ctx.fillStyle = '#000000';
+  ctx.font = '700 ' + Math.round(Math.max(13*S, 12)) + 'px Arial, sans-serif';
   const notice = 'Каждую субботу происходит сброс недельного рекорда, топа и уровней улучшений.';
   const words = notice.split(' ');
   const maxWidth = colW-12*S;
@@ -2499,7 +2499,7 @@ function drawRecords(){
     } else line = test;
   }
   if (line) lines.push(line);
-  const lineHeight = Math.max(13*S, 12);
+  const lineHeight = Math.max(16*S, 15);
   lines.forEach((part, index) => {
     ctx.fillText(part, rightX+colW/2, noticeTop+19*S+index*lineHeight, maxWidth);
   });
