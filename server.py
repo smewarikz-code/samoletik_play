@@ -261,6 +261,45 @@ def claim_stars():
         return jsonify({"error": "stars_claim_failed"}), 503
 
 
+@app.post("/api/stars/status")
+def stars_status():
+    player, error = authenticated_player()
+    if error:
+        return error
+    try:
+        with get_connection() as conn:
+            ensure_schema(conn)
+            row = conn.execute("""
+                SELECT stars_balance FROM players WHERE telegram_id = %s
+            """, (player["telegram_id"],)).fetchone()
+            invoices = conn.execute("""
+                SELECT i.created_at, i.game_stars, i.price_xtr, i.status,
+                       EXISTS (
+                           SELECT 1 FROM star_payments p WHERE p.payload = i.payload
+                       ) AS payment_recorded
+                FROM star_invoices i
+                WHERE i.telegram_id = %s
+                ORDER BY i.created_at DESC
+                LIMIT 5
+            """, (player["telegram_id"],)).fetchall()
+        return jsonify({
+            "ok": True,
+            "server_balance": int(row["stars_balance"]) if row else 0,
+            "recent_invoices": [
+                {
+                    "created_at": item["created_at"].isoformat(),
+                    "game_stars": item["game_stars"],
+                    "price_xtr": item["price_xtr"],
+                    "status": item["status"],
+                    "payment_recorded": item["payment_recorded"],
+                } for item in invoices
+            ],
+        })
+    except Exception:
+        app.logger.exception("Could not load star payment status")
+        return jsonify({"error": "stars_status_unavailable"}), 503
+
+
 @app.post("/api/telegram/webhook")
 def telegram_webhook():
     expected_secret = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "").strip()
