@@ -1861,19 +1861,27 @@ function translateText(value) {
   }
   return text;
 }
-const nativeFillText = ctx.fillText.bind(ctx);
-ctx.fillText = function(value, ...args) {
+function translateCanvasText(value) {
   let text = String(value);
   if (gameLang !== 'ru') {
     const dict = LANG_TEXT[gameLang] || {};
-    if (dict[text] !== undefined) text = dict[text];
-    else {
-      for (const [from, to] of Object.entries(dict).sort((a,b)=>b[0].length-a[0].length)) {
-        if (from.length > 2) text = text.split(from).join(to);
-      }
+    if (dict[text] !== undefined) return dict[text];
+    for (const [from, to] of Object.entries(dict).sort((a,b)=>b[0].length-a[0].length)) {
+      if (from.length > 2) text = text.split(from).join(to);
     }
   }
-  return nativeFillText(text, ...args);
+  return text;
+}
+// Переводим одинаково и заливку, и обводку текста.
+// Раньше fillText переводился, а strokeText оставался на русском,
+// из-за чего поверх английской надписи проступал русский текст.
+const nativeFillText = ctx.fillText.bind(ctx);
+const nativeStrokeText = ctx.strokeText.bind(ctx);
+ctx.fillText = function(value, ...args) {
+  return nativeFillText(translateCanvasText(value), ...args);
+};
+ctx.strokeText = function(value, ...args) {
+  return nativeStrokeText(translateCanvasText(value), ...args);
 };
 function setGameLanguage(lang) {
   gameLang = lang;
