@@ -329,7 +329,7 @@ function themeIndexOf(lvl){ return Math.floor(((lvl|0)-1)/2) % THEMES.length; }
 function themeOf(lvl){ return THEMES[themeIndexOf(lvl)] || THEMES[0]; }
 
 
-function levelSpeed(lvl){ return SPEEDV * (1 + Math.min((lvl-1)*0.012, 1.4)); }
+function levelSpeed(lvl){ return SPEEDV * (1 + Math.min((lvl-1)*0.0096, 1.4)); }
 function levelGap(lvl){ return Math.max(150*S, GAP * (1 - Math.min((lvl-1)*0.004, 0.4))); }
 function levelSpacing(lvl){ return Math.max(170*S, 240*S - Math.min((lvl-1)*0.5*S, 70*S)); }
 
