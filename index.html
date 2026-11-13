@@ -2478,17 +2478,11 @@ function drawRecords(){
   // Уведомление о еженедельном сбросе — справа, сразу под таблицей достижений.
   const noticeTop = startY + rows.length*(rowH+rowGap) + 8*S;
   ctx.save();
-  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-  ctx.fillStyle = '#ff3030';
-  ctx.font = '900 ' + Math.round(Math.max(16*S, 15)) + 'px Arial, sans-serif';
-  ctx.shadowColor = 'rgba(0,0,0,.65)'; ctx.shadowBlur = 4*S;
-  ctx.fillText('Прочитай!', rightX+colW/2, noticeTop, colW-10*S);
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = '#000000';
-  ctx.font = '700 ' + Math.round(Math.max(13*S, 12)) + 'px Arial, sans-serif';
   const notice = 'Каждую субботу происходит сброс недельного рекорда, топа и уровней улучшений.';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.font = '700 ' + Math.round(Math.max(13*S, 12)) + 'px Arial, sans-serif';
+  const maxWidth = colW-24*S;
   const words = notice.split(' ');
-  const maxWidth = colW-12*S;
   const lines = [];
   let line = '';
   for (const word of words) {
@@ -2500,8 +2494,33 @@ function drawRecords(){
   }
   if (line) lines.push(line);
   const lineHeight = Math.max(16*S, 15);
+  const noticeHeight = 24*S + lines.length*lineHeight + 12*S;
+  const nx = rightX+3*S, ny = noticeTop, nw = colW-6*S;
+  const ng = ctx.createLinearGradient(0, ny, 0, ny+noticeHeight);
+  ng.addColorStop(0, 'rgba(24,105,178,.97)');
+  ng.addColorStop(1, 'rgba(4,30,91,.98)');
+  ctx.fillStyle = ng;
+  roundRect(nx, ny, nw, noticeHeight, 10*S); ctx.fill();
+  ctx.lineWidth = Math.max(1.5, 2*S);
+  ctx.strokeStyle = '#f6bd35';
+  roundRect(nx+.5*S, ny+.5*S, nw-1*S, noticeHeight-1*S, 10*S); ctx.stroke();
+  ctx.lineWidth = Math.max(1, 1*S);
+  ctx.strokeStyle = 'rgba(255,255,255,.45)';
+  roundRect(nx+3*S, ny+3*S, nw-6*S, noticeHeight-6*S, 7*S); ctx.stroke();
+  const gloss = ctx.createLinearGradient(0, ny, 0, ny+noticeHeight*.6);
+  gloss.addColorStop(0, 'rgba(255,255,255,.22)');
+  gloss.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gloss;
+  roundRect(nx+4*S, ny+4*S, nw-8*S, noticeHeight*.48, 6*S); ctx.fill();
+  ctx.shadowColor = 'rgba(0,0,0,.65)'; ctx.shadowBlur = 4*S;
+  ctx.fillStyle = '#ffd34d';
+  ctx.font = '900 ' + Math.round(Math.max(16*S, 15)) + 'px Arial, sans-serif';
+  ctx.fillText('Прочитай!', rightX+colW/2, noticeTop+7*S, colW-16*S);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '700 ' + Math.round(Math.max(13*S, 12)) + 'px Arial, sans-serif';
   lines.forEach((part, index) => {
-    ctx.fillText(part, rightX+colW/2, noticeTop+19*S+index*lineHeight, maxWidth);
+    ctx.fillText(part, rightX+colW/2, noticeTop+28*S+index*lineHeight, maxWidth);
   });
   ctx.restore();
 
