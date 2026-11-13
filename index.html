@@ -497,149 +497,112 @@ resize();
 function planeSprite(skinId){
   if (planeCache[skinId]) return planeCache[skinId];
   const sk=SKINS[skinId];
-  const c=document.createElement('canvas'); c.width=c.height=180;
+  const c=document.createElement('canvas'); c.width=180; c.height=180;
   const g=c.getContext('2d');
   g.scale(3,3); g.translate(30,30); g.lineJoin='round'; g.lineCap='round';
-  if(sk.phase) g.globalAlpha=.78;
+  if(sk.phase) g.globalAlpha=.82;
 
-  const bodyGrad=g.createLinearGradient(0,-5,0,5);
-  bodyGrad.addColorStop(0,'#ffffff');
-  bodyGrad.addColorStop(.28,sk.body);
-  bodyGrad.addColorStop(.72,sk.shade);
-  bodyGrad.addColorStop(1,'#536574');
-  const wingGrad=g.createLinearGradient(0,-19,0,19);
-  wingGrad.addColorStop(0,'#ffffff');
-  wingGrad.addColorStop(.3,sk.body);
-  wingGrad.addColorStop(1,sk.shade);
-  function poly(points,fill,stroke=sk.edge,width=.75){
-    g.beginPath();g.moveTo(points[0][0],points[0][1]);
-    for(let i=1;i<points.length;i++)g.lineTo(points[i][0],points[i][1]);
-    g.closePath();g.fillStyle=fill;g.fill();g.lineWidth=width;g.strokeStyle=stroke;g.stroke();
+  const body=sk.body, edge=sk.edge, shade=sk.shade;
+  function poly(p,fill,stroke=edge,w=.7){
+    g.beginPath();g.moveTo(p[0][0],p[0][1]);
+    for(let i=1;i<p.length;i++)g.lineTo(p[i][0],p[i][1]);
+    g.closePath();g.fillStyle=fill;g.fill();g.lineWidth=w;g.strokeStyle=stroke;g.stroke();
   }
-  function line(points,color,width){
-    g.beginPath();g.moveTo(points[0][0],points[0][1]);
-    for(let i=1;i<points.length;i++)g.lineTo(points[i][0],points[i][1]);
-    g.strokeStyle=color;g.lineWidth=width;g.stroke();
+  function line(p,color,w){
+    g.beginPath();g.moveTo(p[0][0],p[0][1]);
+    for(let i=1;i<p.length;i++)g.lineTo(p[i][0],p[i][1]);
+    g.strokeStyle=color;g.lineWidth=w;g.stroke();
   }
-  function fuselage(length=25,radius=2.4){
-    g.save();g.shadowColor='rgba(0,0,0,.32)';g.shadowBlur=3;g.shadowOffsetY=1.5;
-    g.beginPath();g.moveTo(length,0);
-    g.quadraticCurveTo(length-2,-radius, length-7,-radius);
-    g.lineTo(-length+5,-radius*.82);
-    g.quadraticCurveTo(-length,0,-length+5,radius*.82);
-    g.lineTo(length-7,radius);g.quadraticCurveTo(length-2,radius,length,0);
-    g.closePath();g.fillStyle=bodyGrad;g.fill();
-    g.shadowColor='transparent';g.lineWidth=.8;g.strokeStyle=sk.edge;g.stroke();g.restore();
-    line([[length-4,-.65],[-length+5,-.65]],'rgba(255,255,255,.75)',.45);
+  function fuselage(len=27,r=2.2){
+    g.save();g.shadowColor='rgba(0,0,0,.28)';g.shadowBlur=2;g.shadowOffsetY=1;
+    g.beginPath();g.moveTo(len,0);g.quadraticCurveTo(len-2,-r,len-7,-r);
+    g.lineTo(-len+5,-r*.82);g.quadraticCurveTo(-len,0,-len+5,r*.82);
+    g.lineTo(len-7,r);g.quadraticCurveTo(len-2,r,len,0);
+    g.closePath();
+    const gr=g.createLinearGradient(0,-r,0,r);
+    gr.addColorStop(0,'#ffffff');gr.addColorStop(.35,body);gr.addColorStop(1,shade);
+    g.fillStyle=gr;g.fill();g.shadowColor='transparent';g.strokeStyle=edge;g.lineWidth=.65;g.stroke();g.restore();
   }
-  function cockpit(x=15){
-    g.beginPath();g.moveTo(x+3,0);g.quadraticCurveTo(x,-2.2,x-4,-1.5);
-    g.lineTo(x-7,0);g.lineTo(x-4,1.5);g.quadraticCurveTo(x,2.2,x+3,0);
-    g.fillStyle='#173b58';g.fill();g.strokeStyle='#dff7ff';g.lineWidth=.55;g.stroke();
-    line([[x-1,-1],[x-4,0]],'rgba(255,255,255,.8)',.45);
+  function cockpit(x=16){
+    g.beginPath();g.moveTo(x+3,0);g.quadraticCurveTo(x,-2.4,x-4,-1.6);
+    g.lineTo(x-7,0);g.lineTo(x-4,1.6);g.quadraticCurveTo(x,2.4,x+3,0);
+    g.fillStyle='#17496b';g.fill();g.strokeStyle='#d9f5ff';g.lineWidth=.5;g.stroke();
+    line([[x-1,-1],[x-4,0]],'rgba(255,255,255,.85)',.4);
   }
   function windows(xs){
-    for(const x of xs){g.beginPath();g.ellipse(x,0,.48,.8,0,0,Math.PI*2);g.fillStyle='#24465f';g.fill();g.strokeStyle='rgba(255,255,255,.55)';g.lineWidth=.18;g.stroke();}
+    for(const x of xs){g.beginPath();g.ellipse(x,0,.48,.68,0,0,Math.PI*2);g.fillStyle='#24445a';g.fill();g.strokeStyle='rgba(255,255,255,.55)';g.lineWidth=.16;g.stroke();}
   }
-  function engine(x,y,rx,ry,ring){
-    g.save();g.translate(x,y);
-    g.beginPath();g.ellipse(0,0,rx,ry,0,0,Math.PI*2);
-    g.fillStyle=g.createLinearGradient(0,-ry,0,ry);g.fillStyle='#7f929f';g.fill();
-    g.strokeStyle=ring;g.lineWidth=.7;g.stroke();
-    g.beginPath();g.ellipse(0,0,rx*.72,ry*.72,0,0,Math.PI*2);
-    g.fillStyle='#263d50';g.fill();
-    g.beginPath();g.ellipse(.3,0,rx*.34,ry*.34,0,0,Math.PI*2);
-    g.fillStyle='#c5d4de';g.fill();
-    for(let i=0;i<6;i++){const a=i*Math.PI/3;line([[Math.cos(a)*rx*.2,Math.sin(a)*ry*.2],[Math.cos(a)*rx*.64,Math.sin(a)*ry*.64]],'#d8e5ec',.35);}
-    g.restore();
+  function wheel(x,y,r=1){
+    g.beginPath();g.arc(x,y,r,0,Math.PI*2);g.fillStyle='#263744';g.fill();
+    g.strokeStyle='#9baeb9';g.lineWidth=.35;g.stroke();
+    g.beginPath();g.arc(x,y,r*.35,0,Math.PI*2);g.fillStyle='#b9c8d0';g.fill();
   }
 
   if(skinId==='classic'){
-    // Ан-2 как на референсе: бело-синяя окраска, два прямых крыла,
-    // стойки биплана, высокий хвост, открытый винт и колёсное шасси.
-    poly([[5,-2],[-5,-5],[-12,-18],[-21,-18],[-17,-5],[-23,-3],[-23,3],[-17,5],[-21,18],[-12,18],[-5,5],[5,2]],'#eaf4f8','#557b91',.7);
-    poly([[-7,-2],[-13,-4],[-19,-15],[-24,-15],[-21,-4],[-25,-2],[-25,2],[-21,4],[-24,15],[-19,15],[-13,4]],'#dce9ef','#607f91',.65);
-    // ярко-синяя полоса на верхнем крыле
-    poly([[3,-3],[-5,-5],[-12,-17],[-17,-17],[-12,-5],[-20,-3],[-20,-1],[-11,1],[-5,3],[3,1]],'#2475b8','#1b578e',.35);
-    for(const x of [-19,-12,-6]){
-      line([[x,-16],[x+2,-5]],'#526a78',.7);
-      line([[x,16],[x+2,5]],'#526a78',.7);
-    }
-    fuselage(24,2.8);
-    // белый верх и синяя боковая полоса фюзеляжа
-    line([[19,1.35],[-17,1.35]],'#1769a8',1.15);
-    cockpit(16);
-    windows([-6,-8,-10,-12,-14]);
-    poly([[-18,-2],[-25,-7],[-21,-7],[-14,-2]],'#eaf2f6','#637f90',.6);
-    poly([[-18,2],[-25,7],[-21,7],[-14,2]],'#eaf2f6','#637f90',.6);
-    // красная деталь на законцовке крыла и хвосте
-    line([[-20,-16],[-23,-16]],'#d94343',1.2);
-    line([[-20,16],[-23,16]],'#d94343',1.2);
-    // носовой воздушный винт и стойки с колёсами
-    line([[26,-5],[26,5]],'#263d4c',1.1);
-    g.beginPath();g.ellipse(26,0,1.25,.75,0,0,Math.PI*2);g.fillStyle='#dce8ef';g.fill();
-    line([[2,2],[0,7]],'#4c6170',.7);line([[-2,2],[-4,7]],'#4c6170',.7);
-    for(const x of [-1,-5]){g.beginPath();g.arc(x,8,1.05,0,Math.PI*2);g.fillStyle='#243746';g.fill();}
-
+    // Ан-2 — вид сбоку: характерный высокий биплан, стойки и шасси.
+    poly([[-17,-2],[-22,-11],[-19,-11],[-12,-2]],'#e7f0f4','#6b8492',.6);
+    poly([[-17,2],[-22,11],[-19,11],[-12,2]],'#e7f0f4','#6b8492',.6);
+    // верхнее и нижнее крыло видны как две длинные горизонтальные плоскости
+    poly([[-13,-8],[8,-8],[12,-6],[-16,-6]],'#edf5f8','#617f90',.6);
+    poly([[-14,5], [9,5],[12,7],[-17,7]],'#dce8ed','#617f90',.6);
+    line([[-10,-6],[-9,5]],'#536b79',.65);
+    line([[4,-6],[3,5]],'#536b79',.65);
+    fuselage(25,2.8);
+    line([[18,1.25],[-17,1.25]],'#1769a8',1.15);
+    cockpit(16);windows([-6,-8,-10,-12,-14]);
+    // двигатель, пропеллер, стойки и два колеса
+    g.beginPath();g.ellipse(23,0,2.4,2.65,0,0,Math.PI*2);g.fillStyle='#71838d';g.fill();g.strokeStyle='#344b59';g.lineWidth=.55;g.stroke();
+    g.beginPath();g.arc(25.5,0,.7,0,Math.PI*2);g.fillStyle='#dce8ef';g.fill();
+    line([[26,-4],[26,4]],'#314754',1.1);
+    line([[4,2],[2,7]],'#536b79',.7);line([[-3,2],[-5,7]],'#536b79',.7);
+    wheel(2,8,1.05);wheel(-5,8,1.05);
+    line([[-21,-8],[-24,-8]],'#d94343',.8);
   } else if(skinId==='gold'){
-    // Sukhoi Superjet 100: узкий фюзеляж, низкорасположенное стреловидное крыло,
-    // два компактных двигателя под крылом и Т-образное хвостовое оперение.
-    poly([[5,-2],[-5,-4],[-13,-16],[-18,-16],[-12,-3],[-21,-2],[-21,2],[-12,3],[-18,16],[-13,16],[-5,4],[5,2]],wingGrad);
-    // хвостовое горизонтальное оперение
-    poly([[-15,-2],[-22,-7],[-20,-7],[-11,-2]],'#d9a62e','#805b12',.65);
-    poly([[-15,2],[-22,7],[-20,7],[-11,2]],'#d9a62e','#805b12',.65);
-    // двигатели под крыльями
-    engine(-5,-8,3.2,1.55,'#9a6b14');
-    engine(-5,8,3.2,1.55,'#9a6b14');
-    fuselage(25,2.35);cockpit(17);
-    windows([-2,-4,-6,-8,-10,-12,-14,-16]);
-    // золотая ливрея и вертикальный киль
-    line([[12,1.25],[-15,1.25]],'#fff0a6',.75);
-    poly([[-17,-2],[-23,-8],[-19,-8],[-12,-2]],'#e4b63d','#8b6415',.7);
-    line([[21,0],[25,0]],'#fff5ca',.55);
-  } else if(skinId==='diamond'){
-    // Boeing 777: длинный широкофюзеляжный лайнер, широкое крыло,
-    // два очень крупных турбовентиляторных двигателя и характерное хвостовое оперение.
-    poly([[5,-2],[-6,-5],[-13,-19],[-19,-19],[-14,-4],[-22,-3],[-23,0],[-22,3],[-14,4],[-19,19],[-13,19],[-6,5],[5,2]],wingGrad);
-    // массивные двигатели GE90 под крыльями
-    engine(-6,-10,4.2,2.35,'#3fa4e0');
-    engine(-6,10,4.2,2.35,'#3fa4e0');
-    // длинный фюзеляж и остекление кабины
-    fuselage(27,2.65);cockpit(19);
-    windows([7,5,3,1,-1,-3,-5,-7,-9,-11,-13,-15,-17,-19,-21]);
-    // горизонтальный стабилизатор и высокий киль
-    poly([[-20,-2],[-27,-7],[-24,-7],[-15,-2]],'#ccecff','#3fa4e0',.7);
-    poly([[-20,2],[-27,7],[-24,7],[-15,2]],'#ccecff','#3fa4e0',.7);
-    poly([[-20,-1.5],[-25,-7],[-21,-7],[-14,-1.5]],'#a8ddf5','#3fa4e0',.6);
-    line([[18,1.15],[-24,1.15]],'#ffffff',.7);
-    if(sk.spark){g.fillStyle='#fff';for(const pt of [[-3,-8],[10,5],[-11,8]]){g.beginPath();g.arc(pt[0],pt[1],.7,0,Math.PI*2);g.fill();}}
-  } else {
-    // Истребитель по референсу: силуэт F-16 — острый нос,
-    // широкие стреловидные крылья, один киль и фонарь кабины.
-    poly([[29,0],[17,-1.5],[8,-3],[-4,-7],[-17,-18],[-23,-18],[-17,-5],[-25,-3],[-24,0],[-25,3],[-17,5],[-23,18],[-17,18],[-4,7],[8,3],[17,1.5]],'#9ba7b0','#536575',.9);
-    // центральный фюзеляж с плавным переходом к носу
-    fuselage(28,1.85);
-    // крупное трапециевидное крыло с панелями
-    line([[7,-3],[-16,-17]],'#dce5e9',.55);
-    line([[7,3],[-16,17]],'#dce5e9',.55);
-    // один наклонённый киль, как у F-16
-    poly([[-17,-1.8],[-24,-12],[-20,-12],[-11,-2]],'#788894','#465968',.75);
-    // фонарь кабины с характерным длинным стеклом
-    g.beginPath();g.moveTo(22,0);g.quadraticCurveTo(19,-2.3,14,-2);g.lineTo(7,-1.25);g.lineTo(4,0);g.lineTo(7,1.25);g.lineTo(14,2);g.quadraticCurveTo(19,2.3,22,0);g.closePath();
-    g.fillStyle='#17486b';g.fill();g.strokeStyle='#d8f3ff';g.lineWidth=.7;g.stroke();
-    line([[15,-1.8],[12,0],[15,1.8]],'#9edcf5',.5);
-    // боковые воздухозаборники и сопло двигателя
-    poly([[2,-2],[0,-5],[-6,-5],[-4,-2]],'#566a78','#d2e0e7',.45);
-    poly([[2,2],[0,5],[-6,5],[-4,2]],'#566a78','#d2e0e7',.45);
-    g.beginPath();g.ellipse(-25,0,2.3,1.5,0,0,Math.PI*2);g.fillStyle='#344958';g.fill();g.strokeStyle='#c3d0d7';g.lineWidth=.5;g.stroke();
-    // подвесные баки/ракеты под крыльями, как на фото
-    for(const y of [-11,11]){
-      line([[0,y*.55],[-12,y]],'#687986',1.1);
-      g.beginPath();g.moveTo(-4,y*.72);g.lineTo(-15,y);g.lineTo(-4,y*1.08);g.closePath();
-      g.fillStyle='#c5cdd1';g.fill();g.strokeStyle='#697b86';g.lineWidth=.4;g.stroke();
+    // Sukhoi Superjet — боковой профиль пассажирского лайнера.
+    poly([[-17,-2],[-23,-8],[-20,-8],[-12,-2]],'#c99b35','#805b12',.6);
+    poly([[-13,-4],[-6,-12],[0,-12],[-5,-3]],'#d7a832','#805b12',.6);
+    poly([[-13,4],[-6,12],[0,12],[-5,3]],'#d7a832','#805b12',.6);
+    fuselage(27,2.45);cockpit(18);
+    windows([10,8,6,4,2,0,-2,-4,-6,-8,-10,-12,-14,-16,-18]);
+    // два двигателя под крылом, видны в профиль
+    for(const x of [-5,4]){
+      g.beginPath();g.ellipse(x,4.7,3.2,1.45,0,0,Math.PI*2);g.fillStyle='#6f7780';g.fill();g.strokeStyle='#9a6b14';g.lineWidth=.6;g.stroke();
+      g.beginPath();g.ellipse(x+2.4,4.7,.55,1.05,0,0,Math.PI*2);g.fillStyle='#283e50';g.fill();
     }
-    line([[20,0],[28,0]],'#e4edf1',.45);
-
+    line([[17,1.3],[-17,1.3]],'#fff0a6',.7);
+    line([[1,2],[0,7]],'#667985',.55);wheel(0,8,.8);
+  } else if(skinId==='diamond'){
+    // Boeing 777 — длинный широкофюзеляжный лайнер, два крупных двигателя.
+    poly([[-18,-2],[-25,-8],[-22,-8],[-13,-2]],'#ccecff','#3fa4e0',.65);
+    poly([[-15,-3],[-8,-13],[0,-13],[-6,-2]],'#b8e3f7','#3fa4e0',.65);
+    poly([[-15,3],[-8,13],[0,13],[-6,2]],'#b8e3f7','#3fa4e0',.65);
+    fuselage(29,2.7);cockpit(20);
+    windows([14,12,10,8,6,4,2,0,-2,-4,-6,-8,-10,-12,-14,-16,-18,-20]);
+    // характерные очень большие двигатели GE90
+    for(const x of [-7,5]){
+      g.beginPath();g.ellipse(x,5.1,4.1,1.85,0,0,Math.PI*2);g.fillStyle='#788c99';g.fill();g.strokeStyle='#3fa4e0';g.lineWidth=.65;g.stroke();
+      g.beginPath();g.ellipse(x+3.2,5.1,.7,1.35,0,0,Math.PI*2);g.fillStyle='#263d50';g.fill();
+    }
+    line([[18,1.35],[-22,1.35]],'#ffffff',.7);
+    line([[1,2],[0,8]],'#607988',.6);wheel(0,9,.9);
+  } else {
+    // Истребитель F-16 — боковой профиль, острый нос, фонарь и один киль.
+    poly([[-15,-1],[-23,-9],[-19,-9],[-10,-2]],'#84939d','#526575',.65);
+    poly([[-7,-1],[-16,-8],[-12,-8],[-3,-2]],'#aebbc2','#5b6d78',.55);
+    fuselage(29,1.95);
+    // фонарь кабины сверху фюзеляжа
+    g.beginPath();g.moveTo(19,-1.7);g.quadraticCurveTo(15,-4.2,9,-3.2);g.lineTo(5,-1.7);g.lineTo(19,-1.7);g.closePath();
+    g.fillStyle='#17496b';g.fill();g.strokeStyle='#d9f5ff';g.lineWidth=.6;g.stroke();
+    line([[13,-3.4],[11,-1.8]],'#9edcf5',.45);
+    // киль и воздухозаборник
+    poly([[-17,-1.5],[-23,-12],[-19,-12],[-11,-2]],'#748691','#465968',.7);
+    g.beginPath();g.ellipse(-7,1.25,3.2,1,0,0,Math.PI*2);g.fillStyle='#354e60';g.fill();g.strokeStyle='#c3d4dc';g.lineWidth=.4;g.stroke();
+    // хвостовое сопло
+    g.beginPath();g.ellipse(-27,0,2.2,1.55,0,0,Math.PI*2);g.fillStyle='#344958';g.fill();g.strokeStyle='#b8c8d1';g.lineWidth=.5;g.stroke();
+    // подвесной бак под крылом
+    poly([[-4,2],[-13,4],[-16,4],[-13,5],[-4,4]],'#b8c4ca','#687985',.45);
+    line([[-3,2],[ -4,4]],'#6a7d88',.5);
+    line([[-1,1],[0,6]],'#607988',.55);wheel(0,7,.7);
   }
   g.globalAlpha=1;planeCache[skinId]=c;return c;
 }
