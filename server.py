@@ -438,7 +438,7 @@ def telegram_webhook():
                     "text": "✈️ Добро пожаловать в «Самолётик»!\n\nВыбирай, куда отправиться:",
                     "reply_markup": {
                         "inline_keyboard": [[
-                            {"text": "🎮 ИГРАТЬ", "url": "https://smewarikz-code.github.io/samoletik_play/"},
+                            {"text": "🎮 ИГРАТЬ", "web_app": {"url": "https://smewarikz-code.github.io/samoletik_play/"}},
                             {"text": "📢 НАШ КАНАЛ", "url": "https://t.me/+VjtZ7yT5PylmZTQy"}
                         ]]
                     }
