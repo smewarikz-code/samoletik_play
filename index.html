@@ -83,7 +83,9 @@ if (window.Telegram && window.Telegram.WebApp) {
     if (pendingPack && status === 'paid'){
       pendingPack = null;
       state = 'menu';
-      claimPurchasedStars(6);
+      // Дожидаемся стартового запроса, если он ещё выполняется,
+      // затем повторно проверяем оплату, чтобы не пропустить webhook.
+      Promise.resolve(starsClaimPromise).catch(() => 0).then(() => claimPurchasedStars(10));
     } else {
       pendingPack = null;
     }
