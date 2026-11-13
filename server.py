@@ -76,6 +76,12 @@ def ensure_schema(conn):
             recovered_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS online_sessions (
+            session_id UUID PRIMARY KEY,
+            last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    """)
 
 
 def verify_telegram_init_data(init_data):
@@ -143,6 +149,50 @@ def authenticated_player():
 @app.get("/")
 def index():
     return jsonify({"service": "samoletik-leaderboard", "status": "ok"})
+
+
+@app.post("/api/presence")
+def update_presence():
+    payload = request.get_json(silent=True) or {}
+    try:
+        session_id = str(uuid.UUID(str(payload.get("sessionId", ""))))
+    except (ValueError, TypeError, AttributeError):
+        return jsonify({"error": "invalid_session_id"}), 400
+    try:
+        with get_connection() as conn:
+            ensure_schema(conn)
+            conn.execute("""
+                INSERT INTO online_sessions (session_id, last_seen)
+                VALUES (%s, NOW())
+                ON CONFLICT (session_id) DO UPDATE SET last_seen = NOW()
+            """, (session_id,))
+            # Remove abandoned sessions periodically; online count uses a shorter 90-second window.
+            conn.execute("DELETE FROM online_sessions WHERE last_seen < NOW() - INTERVAL '10 minutes'")
+            row = conn.execute("""
+                SELECT COUNT(*) AS online
+                FROM online_sessions
+                WHERE last_seen > NOW() - INTERVAL '90 seconds'
+            """).fetchone()
+        return jsonify({"ok": True, "online": int(row["online"]) if row else 0})
+    except Exception:
+        app.logger.exception("Could not update online presence")
+        return jsonify({"error": "presence_unavailable"}), 503
+
+
+@app.get("/api/online")
+def online_count():
+    try:
+        with get_connection() as conn:
+            ensure_schema(conn)
+            row = conn.execute("""
+                SELECT COUNT(*) AS online
+                FROM online_sessions
+                WHERE last_seen > NOW() - INTERVAL '90 seconds'
+            """).fetchone()
+        return jsonify({"online": int(row["online"]) if row else 0})
+    except Exception:
+        app.logger.exception("Could not load online count")
+        return jsonify({"error": "online_count_unavailable"}), 503
 
 
 @app.get("/health")
