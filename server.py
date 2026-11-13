@@ -68,6 +68,14 @@ def ensure_schema(conn):
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS star_recoveries (
+            payload TEXT PRIMARY KEY,
+            telegram_id BIGINT NOT NULL,
+            game_stars INTEGER NOT NULL,
+            recovered_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    """)
 
 
 def verify_telegram_init_data(init_data):
@@ -247,6 +255,20 @@ def claim_stars():
     try:
         with get_connection() as conn:
             ensure_schema(conn)
+            recovered = conn.execute("""
+                INSERT INTO star_recoveries (payload, telegram_id, game_stars)
+                SELECT p.payload, p.telegram_id, p.game_stars
+                FROM star_payments p
+                WHERE p.telegram_id = %s
+                ON CONFLICT (payload) DO NOTHING
+                RETURNING game_stars
+            """, (player["telegram_id"],)).fetchall()
+            recovered_total = sum(int(item["game_stars"]) for item in recovered)
+            if recovered_total:
+                conn.execute("""
+                    UPDATE players SET stars_balance = stars_balance + %s
+                    WHERE telegram_id = %s
+                """, (recovered_total, player["telegram_id"]))
             row = conn.execute("""
                 WITH amount AS (
                     SELECT stars_balance FROM players WHERE telegram_id = %s FOR UPDATE
@@ -255,7 +277,11 @@ def claim_stars():
                 WHERE telegram_id = %s
                 RETURNING (SELECT stars_balance FROM amount) AS claimed_stars
             """, (player["telegram_id"], player["telegram_id"])).fetchone()
-        return jsonify({"ok": True, "stars": int(row["claimed_stars"]) if row and row["claimed_stars"] else 0})
+        return jsonify({
+            "ok": True,
+            "stars": int(row["claimed_stars"]) if row and row["claimed_stars"] else 0,
+            "recovered": recovered_total,
+        })
     except Exception:
         app.logger.exception("Could not claim purchased stars")
         return jsonify({"error": "stars_claim_failed"}), 503
