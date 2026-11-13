@@ -428,6 +428,26 @@ def telegram_webhook():
         return jsonify({"ok": True})
 
     message = update.get("message") or update.get("edited_message") or {}
+    text = (message.get("text") or "").strip()
+    if text.startswith("/start"):
+        chat_id = (message.get("chat") or {}).get("id")
+        if chat_id:
+            try:
+                telegram_api("sendMessage", {
+                    "chat_id": chat_id,
+                    "text": "✈️ Добро пожаловать в «Самолётик»!\n\nВыбирай, куда отправиться:",
+                    "reply_markup": {
+                        "inline_keyboard": [[
+                            {"text": "🎮 ИГРАТЬ", "url": "https://smewarikz-code.github.io/samoletik_play/"},
+                            {"text": "📢 НАШ КАНАЛ", "url": "https://t.me/+VjtZ7yT5PylmZTQy"}
+                        ]]
+                    }
+                })
+            except Exception:
+                app.logger.exception("Could not send start menu")
+                return jsonify({"ok": False}), 500
+        return jsonify({"ok": True})
+
     payment = message.get("successful_payment")
     if payment:
         user_id = (message.get("from") or {}).get("id")
