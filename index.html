@@ -6,8 +6,9 @@
 <title>Самолётик: Эра приключений</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-  html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#eaf6fd; }
-  canvas { display:block; width:100vw; height:100vh; touch-action:none; }
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#071b35; overscroll-behavior:none; }
+  body { height:var(--app-height, 100vh); height:var(--app-height, 100dvh); }
+  canvas { display:block; width:100vw; height:100%; touch-action:none; }
 </style>
 </head>
 <body>
@@ -244,18 +245,30 @@ persist();
 let bgCache = {}, pipePatterns = {}, planeCache = {}, cloudSpr = null;
 
 function resize(){
-  const dpr = Math.min(window.devicePixelRatio||1, 2);
-  W = cvs.clientWidth; H = cvs.clientHeight;
+  // Telegram Mini Apps могут менять высоту viewport при открытии клавиатуры/панелей.
+  const tgHeight = (tg && Number(tg.viewportHeight)) || 0;
+  const cssHeight = Math.max(1, Math.round(tgHeight || window.innerHeight || document.documentElement.clientHeight));
+  document.documentElement.style.setProperty('--app-height', cssHeight + 'px');
+  const rect = cvs.getBoundingClientRect();
+  W = Math.max(1, rect.width || window.innerWidth || 1);
+  H = Math.max(1, rect.height || cssHeight);
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
   cvs.width = Math.max(2, Math.round(W*dpr));
   cvs.height = Math.max(2, Math.round(H*dpr));
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  S = Math.min(H/700, W/450);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  // Базовый масштаб сохраняет пропорции интерфейса на телефонах, планшетах и ПК.
+  S = Math.max(.38, Math.min(H/700, W/450, 1.15));
   GRAV = .5*S; FLAPV = -8.6*S; SPEEDV = 2.1*S;
-  PIPE_W = 66*S; GAP = Math.min(250*S, H*.45); PLANE_R = 15*S; GROUND_H = 40*S;
+  PIPE_W = 66*S; GAP = Math.min(250*S, H*.45); PLANE_R = 15*S; GROUND_H = Math.min(40*S, H*.12);
   bgCache = {}; pipePatterns = {}; planeCache = {};
   cloudSpr = null; buildTiles();
 }
-window.addEventListener('resize', resize);
+window.addEventListener('resize', resize, {passive:true});
+window.addEventListener('orientationchange', () => setTimeout(resize, 120), {passive:true});
+if (window.visualViewport) window.visualViewport.addEventListener('resize', resize, {passive:true});
+if (tg && tg.onEvent) tg.onEvent('viewportChanged', resize);
 resize();
 
 /* ============ Спрайт Самолётик: Эра приключений ============ */
@@ -1465,7 +1478,7 @@ function drawLanguageControl() {
 
 /* ============ Экраны ============ */
 function drawMenu(){
-  // Один постер масштабируется на весь экран без размытой дублирующей подложки.
+  // Постер заполняет экран без дублирования фона; кадрирование симметричное.
   ctx.save();
   ctx.fillStyle = '#071b35';
   ctx.fillRect(0,0,W,H);
@@ -1475,32 +1488,39 @@ function drawMenu(){
     const dw = iw*scale, dh = ih*scale;
     ctx.drawImage(menuPoster, (W-dw)/2, (H-dh)/2, dw, dh);
   }
-  const shade = ctx.createLinearGradient(0,H*.52,0,H);
+  const shade = ctx.createLinearGradient(0,H*.48,0,H);
   shade.addColorStop(0,'rgba(3,14,31,0)');
-  shade.addColorStop(.42,'rgba(3,14,31,.30)');
+  shade.addColorStop(.35,'rgba(3,14,31,.20)');
   shade.addColorStop(1,'rgba(3,14,31,.82)');
   ctx.fillStyle = shade;
   ctx.fillRect(0,0,W,H);
   ctx.restore();
 
+  // Нижний блок кнопок привязан к нижнему краю и всегда помещается по высоте.
+  const bw = Math.min(240*S, W - 28*S);
+  const bh = Math.max(22, Math.min(39*S, H*.066));
+  const gap = Math.max(2, Math.min(7*S, H*.012));
+  const count = 5;
+  const blockH = count*bh + (count-1)*gap;
+  const bottom = Math.max(8, Math.min(16*S, H*.035));
+  const y0 = Math.max(4, H - blockH - bottom);
+  const x = W/2 - bw/2;
+
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#ffffff';
-  ctx.shadowColor = 'rgba(0,0,0,.8)';
-  ctx.shadowBlur = 8*S;
-  ctx.font = '800 ' + Math.round(Math.max(16*S,14)) + 'px Arial, sans-serif';
-  ctx.fillText('Рекорд: ' + save.best, W/2, H*.625);
+  ctx.shadowColor = 'rgba(0,0,0,.9)';
+  ctx.shadowBlur = Math.max(3, 7*S);
+  ctx.font = '800 ' + Math.round(Math.max(13, Math.min(18*S, H*.032))) + 'px Arial, sans-serif';
+  ctx.fillText('Рекорд: ' + save.best, W/2, Math.max(18, y0-9*S));
   ctx.shadowBlur = 0;
 
-  const bw = Math.min(240*S, W - 60*S), bh = 39*S, gap = 7*S;
-  const x = W/2 - bw/2;
-  const y0 = H*.655;
-  button(x, y0,               bw, bh, 'Начать игру',  ()=>showBriefing(1));
-  button(x, y0 + (bh+gap),    bw, bh, 'Выбор уровня', ()=>{ state='levels'; page=Math.max(0, Math.floor((save.maxLevel-1)/20)); }, '#1f8fc9');
-  button(x, y0 + (bh+gap)*2,  bw, bh, 'Магазин',      ()=>{ state='shop'; }, '#1f8fc9');
-  button(x, y0 + (bh+gap)*3,  bw, bh, 'Рекорды',      ()=>{ state='records'; }, '#1f8fc9');
-  const fs = 34*S;
-  button(x, y0 + (bh+gap)*4,  bw, bh, 'Пополнить звёзды', ()=>{ state='topup'; }, '#f5a623');
-  button(W - fs - 12*S, 12*S, fs, fs, '⛶', goFull, 'rgba(10,50,80,.65)');
+  button(x, y0,                    bw, bh, 'Начать игру',  ()=>showBriefing(1));
+  button(x, y0 + (bh+gap),         bw, bh, 'Выбор уровня', ()=>{ state='levels'; page=Math.max(0, Math.floor((save.maxLevel-1)/20)); }, '#1f8fc9');
+  button(x, y0 + (bh+gap)*2,       bw, bh, 'Магазин',      ()=>{ state='shop'; }, '#1f8fc9');
+  button(x, y0 + (bh+gap)*3,       bw, bh, 'Рекорды',      ()=>{ state='records'; }, '#1f8fc9');
+  button(x, y0 + (bh+gap)*4,       bw, bh, 'Пополнить звёзды', ()=>{ state='topup'; }, '#f5a623');
+  const fs = Math.max(27, Math.min(34*S, 42, W*.11));
+  button(W - fs - 10, 10, fs, fs, '⛶', goFull, 'rgba(10,50,80,.72)');
   drawLanguageControl();
 }
 function drawBriefing(){
