@@ -223,6 +223,7 @@ function load(){
     save.weeklyBest = 0;
   }
   if (!save.playerName) save.playerName = 'Игрок';
+  if (!Array.isArray(save.localLeaderboard)) save.localLeaderboard = [];
   if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user){
     const un = (tg.initDataUnsafe.user.first_name || '').trim();
     if (un) save.playerName = un.substring(0, 12);
@@ -665,7 +666,8 @@ let fx = [], wx = [];
 let shakeT = 0, shieldT = 0, shieldUsed = false;
 let phaseT = 0, phaseUsed = false; 
 let themeIdx = 0, passLevel = 1, page = 0;
-let luckyUsed = false;   //
+let luckyUsed = false;
+let leaderboardScroll = 0, leaderboardDrag = null;
 
 
 function haptic(type){ try { tg && tg.HapticFeedback && tg.HapticFeedback.impactOccurred(type); } catch(e){} }
@@ -866,11 +868,45 @@ cvs.addEventListener('pointerdown', e => {
   e.preventDefault();
   const r = cvs.getBoundingClientRect();
   const x = e.clientX - r.left, y = e.clientY - r.top;
+  if (state === 'records') {
+    const lx = 12*S, lw = (W - 24*S - 10*S)/2;
+    const ly = 90*S + 42*S, lh = Math.max(80*S, H - 28*S - ly);
+    if (x >= lx && x <= lx+lw && y >= ly && y <= ly+lh) {
+      leaderboardDrag = {startY:y, startScroll:leaderboardScroll, x, y};
+      try { cvs.setPointerCapture(e.pointerId); } catch(_) {}
+      return;
+    }
+  }
   for (const b of uiButtons){
     if (x>=b.x && x<=b.x+b.w && y>=b.y && y<=b.y+b.h){ b.action(); return; }
   }
   if (state === 'play') flap();
 });
+cvs.addEventListener('pointermove', e => {
+  if (!leaderboardDrag || state !== 'records') return;
+  const r = cvs.getBoundingClientRect();
+  const y = e.clientY - r.top;
+  const listH = Math.max(80*S, H - 28*S - (90*S + 42*S));
+  const rowH = 34*S;
+  const count = Array.isArray(save.localLeaderboard) ? save.localLeaderboard.length : 0;
+  const maxScroll = Math.max(0, 34*S + count*rowH - listH);
+  leaderboardScroll = Math.max(0, Math.min(maxScroll, leaderboardDrag.startScroll + (leaderboardDrag.startY-y)));
+});
+function stopLeaderboardDrag(){ leaderboardDrag = null; }
+cvs.addEventListener('pointerup', stopLeaderboardDrag);
+cvs.addEventListener('pointercancel', stopLeaderboardDrag);
+cvs.addEventListener('wheel', e => {
+  if (state !== 'records') return;
+  const r = cvs.getBoundingClientRect();
+  const x = e.clientX-r.left, y = e.clientY-r.top;
+  const lx=12*S, lw=(W-24*S-10*S)/2, ly=132*S, lh=Math.max(80*S,H-28*S-ly);
+  if (x>=lx && x<=lx+lw && y>=ly && y<=ly+lh) {
+    e.preventDefault();
+    const count=Array.isArray(save.localLeaderboard)?save.localLeaderboard.length:0;
+    const maxScroll=Math.max(0,34*S + count*34*S-lh);
+    leaderboardScroll=Math.max(0,Math.min(maxScroll,leaderboardScroll+e.deltaY));
+  }
+},{passive:false});
 window.addEventListener('keydown', e => {
   if (e.code !== 'Space' && e.code !== 'ArrowUp') return;
   e.preventDefault();
@@ -988,6 +1024,14 @@ function finishGame(win){
   save.games++;
   if (score > save.best) save.best = score;
   if (score > save.weeklyBest) save.weeklyBest = score;
+  // Локальный рейтинг на этом устройстве: сохраняем лучший результат каждого имени.
+  if (!Array.isArray(save.localLeaderboard)) save.localLeaderboard = [];
+  const rankName = String(save.playerName || 'Игрок').trim().slice(0, 12) || 'Игрок';
+  const rankEntry = save.localLeaderboard.find(p => p.name === rankName);
+  if (rankEntry) rankEntry.score = Math.max(Number(rankEntry.score) || 0, score);
+  else save.localLeaderboard.push({name: rankName, score});
+  save.localLeaderboard.sort((a,b) => (Number(b.score)||0) - (Number(a.score)||0));
+  save.localLeaderboard = save.localLeaderboard.slice(0, 100);
   persist();
   finishGame.earned = earnedStars;
 }
@@ -1423,7 +1467,7 @@ const LANG_TEXT = {
 const LANG_EXTRA = {
   en: {
     'ЩИТ':'SHIELD','⚠ Баррикады движутся!':'⚠ Barriers are moving!','⚠ Зазор сужается!':'⚠ Gap is closing!',
-    'Пополнение':'Top up','ИГРОК':'PLAYER','НЕДЕЛЬНЫЙ РЕКОРД':'WEEKLY RECORD',
+    'Пополнение':'Top up','ТОП ПО ОЧКАМ':'TOP SCORES','ОЧКИ':'POINTS','Локальный рейтинг этого устройства':'Local leaderboard on this device','Сыграйте игру, чтобы попасть в топ':'Play a game to enter the top','ИГРОК':'PLAYER','НЕДЕЛЬНЫЙ РЕКОРД':'WEEKLY RECORD','ДОСТИЖЕНИЯ ИГРОКА':'PLAYER ACHIEVEMENTS',
     'коснитесь, чтобы сменить имя':'tap to change name','Ваше имя (до 12 символов):':'Your name (up to 12 characters):',
     'Покупки доступны только в Telegram':'Purchases are available only in Telegram',
     'Ссылка на оплату ещё не настроена. Нужно сгенерировать инвойс.':'Payment link is not configured yet. An invoice must be generated.',
@@ -1437,7 +1481,7 @@ const LANG_EXTRA = {
   },
   es: {
     'ЩИТ':'ESCUDO','⚠ Баррикады движутся!':'⚠ ¡Las barreras se mueven!','⚠ Зазор сужается!':'⚠ ¡El espacio se estrecha!',
-    'ИГРОК':'JUGADOR','НЕДЕЛЬНЫЙ РЕКОРД':'RÉCORD SEMANAL','коснитесь, чтобы сменить имя':'toca para cambiar el nombre',
+    'ТОП ПО ОЧКАМ':'TOP DE PUNTOS','ОЧКИ':'PUNTOS','Локальный рейтинг этого устройства':'Clasificación local de este dispositivo','Сыграйте игру, чтобы попасть в топ':'Juega para entrar en la clasificación','ИГРОК':'JUGADOR','НЕДЕЛЬНЫЙ РЕКОРД':'RÉCORD SEMANAL','ДОСТИЖЕНИЯ ИГРОКА':'LOGROS DEL JUGADOR','коснитесь, чтобы сменить имя':'toca para cambiar el nombre',
     'Ваше имя (до 12 символов):':'Tu nombre (hasta 12 caracteres):','Покупки доступны только в Telegram':'Las compras solo están disponibles en Telegram',
     'Ссылка на оплату ещё не настроена. Нужно сгенерировать инвойс.':'El enlace de pago aún no está configurado. Hay que generar una factura.',
     'Ошибка открытия счёта: ':'Error al abrir la factura: ','Без бонуса — честная классика':'Sin bonificación: juego clásico y justo',
@@ -1447,7 +1491,7 @@ const LANG_EXTRA = {
   },
   it: {
     'ЩИТ':'SCUDO','⚠ Баррикады движутся!':'⚠ Le barriere si muovono!','⚠ Зазор сужается!':'⚠ Il passaggio si restringe!',
-    'ИГРОК':'GIOCATORE','НЕДЕЛЬНЫЙ РЕКОРД':'RECORD SETTIMANALE','коснитесь, чтобы сменить имя':'tocca per cambiare nome',
+    'ТОП ПО ОЧКАМ':'CLASSIFICA PUNTI','ОЧКИ':'PUNTI','Локальный рейтинг этого устройства':'Classifica locale su questo dispositivo','Сыграйте игру, чтобы попасть в топ':'Gioca per entrare in classifica','ИГРОК':'GIOCATORE','НЕДЕЛЬНЫЙ РЕКОРД':'RECORD SETTIMANALE','ДОСТИЖЕНИЯ ИГРОКА':'RISULTATI DEL GIOCATORE','коснитесь, чтобы сменить имя':'tocca per cambiare nome',
     'Ваше имя (до 12 символов):':'Il tuo nome (massimo 12 caratteri):','Покупки доступны только в Telegram':'Gli acquisti sono disponibili solo su Telegram',
     'Ссылка на оплату ещё не настроена. Нужно сгенерировать инвойс.':'Il link di pagamento non è ancora configurato. È necessario generare una fattura.',
     'Ошибка открытия счёта: ':'Errore nell’apertura della fattura: ','Без бонуса — честная классика':'Nessun bonus: modalità classica e leale',
@@ -1457,7 +1501,7 @@ const LANG_EXTRA = {
   },
   de: {
     'ЩИТ':'SCHILD','⚠ Баррикады движутся!':'⚠ Barrieren bewegen sich!','⚠ Зазор сужается!':'⚠ Der Durchgang wird enger!',
-    'ИГРОК':'SPIELER','НЕДЕЛЬНЫЙ РЕКОРД':'WOCHENREKORD','коснитесь, чтобы сменить имя':'tippen, um den Namen zu ändern',
+    'ТОП ПО ОЧКАМ':'PUNKTE-RANGLISTE','ОЧКИ':'PUNKTE','Локальный рейтинг этого устройства':'Lokale Rangliste auf diesem Gerät','Сыграйте игру, чтобы попасть в топ':'Spiele, um in die Rangliste zu kommen','ИГРОК':'SPIELER','НЕДЕЛЬНЫЙ РЕКОРД':'WOCHENREKORD','ДОСТИЖЕНИЯ ИГРОКА':'SPIELER-ERFOLGE','коснитесь, чтобы сменить имя':'tippen, um den Namen zu ändern',
     'Ваше имя (до 12 символов):':'Dein Name (bis zu 12 Zeichen):','Покупки доступны только в Telegram':'Käufe sind nur in Telegram möglich',
     'Ссылка на оплату ещё не настроена. Нужно сгенерировать инвойс.':'Der Zahlungslink ist noch nicht eingerichtet. Eine Rechnung muss erstellt werden.',
     'Ошибка открытия счёта: ':'Fehler beim Öffnen der Rechnung: ','Без бонуса — честная классика':'Kein Bonus – klassisches, faires Spiel',
@@ -1506,7 +1550,7 @@ function setGameLanguage(lang) {
 }
 function drawLanguageControl() {
   const fs = 76*S, x = W - fs - 12*S;
-  button(x, 56*S, fs, 34*S, 'Language', () => { languageOpen = !languageOpen; }, 'rgba(10,50,80,.65)');
+  button(x, 56*S, fs, 34*S, 'Выбор языка', () => { languageOpen = !languageOpen; }, 'rgba(10,50,80,.65)');
   if (!languageOpen) return;
   const items = [
     {id:'ru', label:'Русский'},
@@ -1747,30 +1791,30 @@ function wrapText(text, x, y, maxW, lineH){
 }
 
 function drawRecords(){
-  // Экран рекордов в едином золотисто-синем стиле логотипа.
+  // Две отдельные таблицы: недельный рекорд слева, достижения игрока справа.
   const card = (cx, cy, cw, ch, accent=false) => {
     ctx.save();
     const g = ctx.createLinearGradient(0, cy, 0, cy+ch);
     if (accent) {
       g.addColorStop(0, 'rgba(24,105,178,.97)');
-      g.addColorStop(1, 'rgba(4, thirty, 91, .98)'.replace('thirty','30'));
+      g.addColorStop(1, 'rgba(4,30,91,.98)');
     } else {
       g.addColorStop(0, 'rgba(15,75,132,.96)');
       g.addColorStop(1, 'rgba(4,30,76,.97)');
     }
     ctx.fillStyle = g;
-    roundRect(cx, cy, cw, ch, 14*S); ctx.fill();
+    roundRect(cx, cy, cw, ch, 12*S); ctx.fill();
     ctx.lineWidth = Math.max(1.5, 2*S);
     ctx.strokeStyle = '#f6bd35';
-    roundRect(cx+.5*S, cy+.5*S, cw-1*S, ch-1*S, 14*S); ctx.stroke();
+    roundRect(cx+.5*S, cy+.5*S, cw-1*S, ch-1*S, 12*S); ctx.stroke();
     ctx.lineWidth = Math.max(1, 1*S);
     ctx.strokeStyle = 'rgba(255,255,255,.45)';
-    roundRect(cx+3*S, cy+3*S, cw-6*S, ch-6*S, 11*S); ctx.stroke();
+    roundRect(cx+3*S, cy+3*S, cw-6*S, ch-6*S, 9*S); ctx.stroke();
     const gloss = ctx.createLinearGradient(0, cy, 0, cy+ch*.6);
     gloss.addColorStop(0, 'rgba(255,255,255,.22)');
     gloss.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = gloss;
-    roundRect(cx+4*S, cy+4*S, cw-8*S, ch*.48, 10*S); ctx.fill();
+    roundRect(cx+4*S, cy+4*S, cw-8*S, ch*.48, 8*S); ctx.fill();
     ctx.restore();
   };
 
@@ -1785,59 +1829,153 @@ function drawRecords(){
   ctx.restore();
   button(12*S, 26*S, 92*S, 34*S, '← Меню', toMenu, '#1f8fc9');
 
-  const w = Math.min(340*S, W - 32*S), x = (W - w)/2;
-  const tableY = 90*S, th = 60*S;
-  card(x, tableY, w, th, true);
+  const margin = 12*S, gap = 10*S;
+  const colW = (W - margin*2 - gap)/2;
+  const leftX = margin, rightX = leftX + colW + gap;
+  const topY = 90*S, headerH = 66*S;
+  const titleStyle = () => {
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffe08a';
+    ctx.font = '900 ' + Math.round(Math.max(10*S, 9)) + 'px Arial, sans-serif';
+  };
 
-  // Заголовки таблицы
+  // Левая таблица — локальный топ игроков по лучшему результату.
+  const leftHeaderH = 42*S;
+  const listY = topY + leftHeaderH;
+  const listBottom = H - 28*S;
+  const listH = Math.max(80*S, listBottom - listY);
+  const leaderboardRowH = 34*S;
+  const leaderboard = (Array.isArray(save.localLeaderboard) ? save.localLeaderboard : [])
+    .slice().sort((a,b) => (Number(b.score)||0) - (Number(a.score)||0));
+  const contentH = Math.max(listH, 34*S + leaderboard.length * leaderboardRowH);
+  const maxScroll = Math.max(0, contentH - listH);
+  leaderboardScroll = Math.max(0, Math.min(leaderboardScroll, maxScroll));
+
+  card(leftX, topY, colW, leftHeaderH, true);
   ctx.save();
-  ctx.font = '900 ' + Math.round(Math.max(11*S,9)) + 'px Arial, sans-serif';
-  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = '#ffe08a';
-  ctx.textAlign = 'left';
-  ctx.fillText('ИГРОК', x+16*S, tableY + 18*S);
-  ctx.textAlign = 'right';
-  ctx.fillText('НЕДЕЛЬНЫЙ РЕКОРД', x+w-16*S, tableY + 18*S);
-  ctx.strokeStyle = 'rgba(255,211,77,.75)'; ctx.lineWidth = 1.5*S;
-  ctx.beginPath(); ctx.moveTo(x+12*S, tableY+24*S); ctx.lineTo(x+w-12*S, tableY+24*S); ctx.stroke();
-
-  ctx.font = '800 ' + Math.round(Math.max(16*S,14)) + 'px Arial, sans-serif';
-  ctx.textAlign = 'left'; ctx.fillStyle = '#ffffff';
-  ctx.fillText(save.playerName, x+16*S, tableY+46*S, w-150*S);
-  ctx.textAlign = 'right'; ctx.fillStyle = '#ffd34d';
-  ctx.fillText(String(save.weeklyBest), x+w-16*S, tableY+46*S);
-  if (!tg){
-    ctx.fillStyle = '#c7eaff';
-    ctx.font = Math.round(Math.max(10*S,8)) + 'px Arial, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText('коснитесь, чтобы сменить имя', x+16*S, tableY+th-4*S);
-    uiButtons.push({x, y:tableY, w, h:th, action:changePlayerName});
-  }
+  ctx.font = '900 ' + Math.round(Math.max(13*S, 11)) + 'px Arial, sans-serif';
+  ctx.fillText(translateText('ТОП ПО ОЧКАМ'), leftX+colW/2, topY+leftHeaderH/2, colW-12*S);
   ctx.restore();
 
-  const y0 = tableY + th + 14*S, rh = 52*S;
+  // Область списка обрезается по границам таблицы; прокрутка работает колесом и свайпом.
+  ctx.save();
+  roundRect(leftX, listY, colW, listH, 10*S); ctx.clip();
+  ctx.fillStyle = 'rgba(4,30,76,.94)'; ctx.fillRect(leftX, listY, colW, listH);
+  ctx.textBaseline = 'middle';
+  ctx.font = '800 ' + Math.round(Math.max(10*S, 9)) + 'px Arial, sans-serif';
+  const rankCol = leftX + 18*S;
+  const nameColX = leftX + 42*S;
+  const scoreColX = leftX + colW - 12*S;
+  ctx.textAlign = 'left'; ctx.fillStyle = '#ffe08a';
+  ctx.fillText('№', rankCol, listY+15*S);
+  ctx.fillText(translateText('ИГРОК'), nameColX, listY+15*S, colW*.48);
+  ctx.textAlign = 'right'; ctx.fillText(translateText('ОЧКИ'), scoreColX, listY+15*S);
+  ctx.strokeStyle = 'rgba(255,211,77,.65)'; ctx.lineWidth = 1*S;
+  ctx.beginPath(); ctx.moveTo(leftX+8*S, listY+29*S); ctx.lineTo(leftX+colW-8*S, listY+29*S); ctx.stroke();
+
+  const rowsTop = listY + 34*S;
+  const visibleRowsH = Math.max(0, listH - 34*S);
+  if (!leaderboard.length) {
+    ctx.textAlign = 'center'; ctx.fillStyle = '#c7eaff';
+    ctx.font = '700 ' + Math.round(Math.max(9*S, 8)) + 'px Arial, sans-serif';
+    ctx.fillText(translateText('Сыграйте игру, чтобы попасть в топ'), leftX+colW/2, rowsTop+22*S, colW-16*S);
+  }
+  const firstIndex = Math.floor(leaderboardScroll / leaderboardRowH);
+  const lastIndex = Math.min(leaderboard.length, Math.ceil((leaderboardScroll + visibleRowsH) / leaderboardRowH));
+  for (let i=firstIndex; i<lastIndex; i++) {
+    const item = leaderboard[i];
+    const yy = rowsTop + i*leaderboardRowH - leaderboardScroll;
+    if (i % 2 === 0) { ctx.fillStyle = 'rgba(255,255,255,.055)'; ctx.fillRect(leftX+4*S, yy, colW-8*S, leaderboardRowH); }
+    ctx.textAlign = 'center';
+    const rowCenterY = yy + leaderboardRowH/2;
+    if (i < 3) {
+      // Медаль занимает только колонку места и не заходит на имя игрока.
+      const medalColors = ['#f5c542', '#c7d0da', '#c98552'];
+      const medalX = rankCol, medalY = rowCenterY;
+      const medalR = 5.2*S;
+      ctx.save();
+      ctx.lineWidth = 1*S;
+      ctx.strokeStyle = 'rgba(255,255,255,.75)';
+      ctx.fillStyle = medalColors[i];
+      // Ленты медали.
+      ctx.beginPath();
+      ctx.moveTo(medalX-2.8*S, medalY+2*S);
+      ctx.lineTo(medalX-4*S, medalY+8*S);
+      ctx.lineTo(medalX, medalY+6*S);
+      ctx.lineTo(medalX+4*S, medalY+8*S);
+      ctx.lineTo(medalX+2.8*S, medalY+2*S);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      // Круглая часть медали.
+      ctx.beginPath(); ctx.arc(medalX, medalY-1*S, medalR, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = i === 0 ? '#795400' : (i === 1 ? '#4d5965' : '#713d1d');
+      ctx.font = '900 ' + Math.round(6*S) + 'px Arial, sans-serif';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(i+1), medalX, medalY-1*S);
+      ctx.restore();
+    } else {
+      ctx.textAlign = 'left'; ctx.fillStyle = '#ffffff';
+      ctx.font = '800 ' + Math.round(Math.max(10*S, 9)) + 'px Arial, sans-serif';
+      ctx.fillText(String(i+1), rankCol, rowCenterY, 12*S);
+    }
+    let nm = String(item.name || 'Игрок');
+    ctx.textAlign = 'left'; ctx.fillStyle = '#ffffff';
+    ctx.font = '800 ' + Math.round(Math.max(10*S, 9)) + 'px Arial, sans-serif';
+    const nameMaxW = Math.max(12*S, scoreColX - nameColX - 12*S);
+    while (nm.length > 1 && ctx.measureText(nm).width > nameMaxW) nm = nm.slice(0,-1);
+    if (nm !== String(item.name || 'Игрок')) {
+      while (nm.length > 1 && ctx.measureText(nm+'…').width > nameMaxW) nm = nm.slice(0,-1);
+      nm += '…';
+    }
+    ctx.fillText(nm, nameColX, yy+leaderboardRowH/2, nameMaxW);
+    ctx.textAlign = 'right'; ctx.fillStyle = '#ffd34d';
+    ctx.font = '900 ' + Math.round(Math.max(11*S, 10)) + 'px Arial, sans-serif';
+    ctx.fillText(String(Number(item.score)||0), scoreColX, yy+leaderboardRowH/2, colW*.25);
+  }
+  ctx.restore();
+  // Тонкий индикатор прокрутки появляется, когда строк больше, чем помещается.
+  if (maxScroll > 0) {
+    const trackX = leftX + colW - 5*S, trackY = listY + 5*S, trackH = listH - 10*S;
+    const thumbH = Math.max(22*S, trackH * listH / contentH);
+    const thumbY = trackY + (trackH-thumbH) * leaderboardScroll/maxScroll;
+    ctx.save(); ctx.fillStyle = 'rgba(255,255,255,.18)';
+    roundRect(trackX, trackY, 2*S, trackH, 1*S); ctx.fill();
+    ctx.fillStyle = '#ffd34d'; roundRect(trackX, thumbY, 2*S, thumbH, 1*S); ctx.fill(); ctx.restore();
+  }
+  ctx.save();
+  ctx.font = Math.round(Math.max(8*S, 7)) + 'px Arial, sans-serif';
+  ctx.fillStyle = '#c7eaff'; ctx.textAlign = 'center';
+  ctx.fillText(translateText('Локальный рейтинг этого устройства'), leftX+colW/2, H-8*S, colW-8*S);
+  ctx.restore();
+
+  // Правая таблица — достижения игрока.
+  card(rightX, topY, colW, headerH, true);
+  ctx.save(); titleStyle();
+  ctx.fillText('ДОСТИЖЕНИЯ ИГРОКА', rightX+colW/2, topY+headerH/2, colW-8*S);
+  ctx.restore();
+
   const rows = [
     ['Лучший счёт', save.best],
     ['Открыто уровней', save.maxLevel + ' / ' + MAX_LEVEL],
     ['Игр сыграно', save.games],
     ['Звёзды', '⭐ ' + save.stars],
-    ['Самолётик: Эра приключений', SKINS[save.skin].name]
+    ['Самолётик', SKINS[save.skin].name]
   ];
-  for (let i=0;i<rows.length;i++){
-    const yy = y0 + i*(rh+8*S);
-    card(x, yy, w, rh, false);
-    ctx.save();
-    ctx.textBaseline = 'middle';
+  const rowH = 54*S, rowGap = 8*S, startY = topY + headerH + 10*S;
+  for (let i=0; i<rows.length; i++) {
+    const yy = startY + i*(rowH+rowGap);
+    card(rightX, yy, colW, rowH, false);
+    ctx.save(); ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
     ctx.fillStyle = '#e5f4ff';
-    ctx.font = '800 ' + Math.round(Math.max(14*S,12)) + 'px Arial, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(rows[i][0], x+16*S, yy+rh/2, w*.58);
+    ctx.font = '800 ' + Math.round(Math.max(10*S, 9)) + 'px Arial, sans-serif';
+    ctx.fillText(rows[i][0], rightX+colW/2, yy+17*S, colW-12*S);
     ctx.fillStyle = '#ffd34d';
-    ctx.font = '900 ' + Math.round(Math.max(15*S,13)) + 'px Arial, sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText(String(rows[i][1]), x+w-16*S, yy+rh/2, w*.38);
+    ctx.font = '900 ' + Math.round(Math.max(13*S, 11)) + 'px Arial, sans-serif';
+    ctx.fillText(String(rows[i][1]), rightX+colW/2, yy+39*S, colW-12*S);
     ctx.restore();
   }
+
 }
 function drawPause(){
   ctx.fillStyle = 'rgba(10,30,50,.45)'; ctx.fillRect(0,0,W,H);
