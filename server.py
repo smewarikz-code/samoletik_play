@@ -287,17 +287,22 @@ def claim_stars():
                     UPDATE players SET stars_balance = stars_balance + %s
                     WHERE telegram_id = %s
                 """, (recovered_total, player["telegram_id"]))
+            conn.execute("""
+                INSERT INTO players (telegram_id, display_name, username, best_score)
+                VALUES (%s, %s, %s, 0)
+                ON CONFLICT (telegram_id) DO NOTHING
+            """, (player["telegram_id"], player["display_name"], player["username"]))
             row = conn.execute("""
-                WITH amount AS (
-                    SELECT stars_balance FROM players WHERE telegram_id = %s FOR UPDATE
-                )
+                SELECT stars_balance FROM players WHERE telegram_id = %s FOR UPDATE
+            """, (player["telegram_id"],)).fetchone()
+            claimed_stars = int(row["stars_balance"]) if row else 0
+            conn.execute("""
                 UPDATE players SET stars_balance = 0
                 WHERE telegram_id = %s
-                RETURNING (SELECT stars_balance FROM amount) AS claimed_stars
-            """, (player["telegram_id"], player["telegram_id"])).fetchone()
+            """, (player["telegram_id"],))
         return jsonify({
             "ok": True,
-            "stars": int(row["claimed_stars"]) if row and row["claimed_stars"] else 0,
+            "stars": claimed_stars,
             "recovered": recovered_total,
         })
     except Exception:
