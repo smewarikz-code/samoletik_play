@@ -2574,7 +2574,7 @@ function drawRecords(){
   // Уведомление о еженедельном сбросе — справа, сразу под таблицей достижений.
   const noticeTop = startY + rows.length*(rowH+rowGap) + 8*S;
   ctx.save();
-  const notice = 'Сброс недельного рекорда и топа происходит каждую субботу в 23:59. Улучшения сохраняются.';
+  const notice = 'Сброс недельного рекорда и топа происходит каждую субботу в 23:59.';
   ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   ctx.font = '700 ' + Math.round(Math.max(13*S, 12)) + 'px Arial, sans-serif';
   const maxWidth = colW-24*S;
