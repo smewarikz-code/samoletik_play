@@ -360,7 +360,7 @@ const UPGRADES = {
 
 /* ============ Сохранение и НЕДЕЛЬНЫЙ РЕКОРД ============ */
 let save;
-function getSaturdayResetKey(date = new Date()){
+function getSaturdayCalendarKey(date = new Date()){
   const saturday = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   saturday.setHours(0,0,0,0);
   const daysSinceSaturday = (saturday.getDay() + 1) % 7;
@@ -370,12 +370,22 @@ function getSaturdayResetKey(date = new Date()){
   const d = String(saturday.getDate()).padStart(2,'0');
   return `${y}-${m}-${d}`;
 }
+function getSaturdayResetKey(date = new Date()){
+  const saturday = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const daysSinceSaturday = (saturday.getDay() + 1) % 7;
+  saturday.setDate(saturday.getDate() - daysSinceSaturday);
+  saturday.setHours(23,59,0,0);
+  // Новый игровой период начинается после субботнего сброса в 23:59.
+  if (date < saturday) saturday.setDate(saturday.getDate() - 7);
+  const y = saturday.getFullYear();
+  const m = String(saturday.getMonth()+1).padStart(2,'0');
+  const d = String(saturday.getDate()).padStart(2,'0');
+  return `${y}-${m}-${d}`;
+}
 function applySaturdayReset(resetKey = getSaturdayResetKey()){
   save.saturdayResetKey = resetKey;
   save.weeklyBest = 0;
-  // Каждую субботу уровни улучшений снова становятся нулевыми.
-  save.upgrades = { magnet: 0, armor: 0 };
-  // Локальная таблица топа содержит результаты только текущей игровой недели.
+  // Улучшения сохраняются; сбрасываются только недельный рекорд и локальный топ.
   save.localLeaderboard = [];
   persist();
 }
@@ -391,10 +401,19 @@ function load(){
   save.games     = save.games     || 0;
   save.maxLevel  = Math.max(1, Math.min(MAX_LEVEL, Math.round(save.maxLevel || 1)));
 
-  // Неделя игры начинается в субботу по местному времени устройства.
-  const currentResetKey = getSaturdayResetKey();
+  // Сброс выполняется по местному времени устройства в субботу в 23:59.
+  const now = new Date();
+  const thisSaturdayReset = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  thisSaturdayReset.setDate(thisSaturdayReset.getDate() - ((thisSaturdayReset.getDay() + 1) % 7));
+  thisSaturdayReset.setHours(23,59,0,0);
+  // Мягкая миграция старого ключа: не запускаем сброс раньше времени при обновлении в субботу.
+  if (save.saturdayResetKey === getSaturdayCalendarKey(now) && now < thisSaturdayReset) {
+    const previousSaturday = new Date(thisSaturdayReset);
+    previousSaturday.setDate(previousSaturday.getDate() - 7);
+    save.saturdayResetKey = getSaturdayCalendarKey(previousSaturday);
+  }
+  const currentResetKey = getSaturdayResetKey(now);
   if (!save.saturdayResetKey) {
-    // При первом запуске новой версии сохраняем текущие покупки до ближайшей субботы.
     save.saturdayResetKey = currentResetKey;
   } else if (save.saturdayResetKey !== currentResetKey) {
     applySaturdayReset(currentResetKey);
@@ -2555,7 +2574,7 @@ function drawRecords(){
   // Уведомление о еженедельном сбросе — справа, сразу под таблицей достижений.
   const noticeTop = startY + rows.length*(rowH+rowGap) + 8*S;
   ctx.save();
-  const notice = 'Каждую субботу происходит сброс недельного рекорда, топа и уровней улучшений.';
+  const notice = 'Сброс недельного рекорда и топа происходит каждую субботу в 23:59. Улучшения сохраняются.';
   ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   ctx.font = '700 ' + Math.round(Math.max(13*S, 12)) + 'px Arial, sans-serif';
   const maxWidth = colW-24*S;
