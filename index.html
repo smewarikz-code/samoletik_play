@@ -399,7 +399,14 @@ function load(){
 
   save.best      = save.best      || 0;
   save.games     = save.games     || 0;
-  save.maxLevel = MAX_LEVEL;
+  // Однократное восстановление исходной системы уровней: открыт только первый уровень.
+  // Дальше прогресс сохраняется и следующие уровни открываются последовательно.
+  if (!save.levelLocksRestoredV1) {
+    save.maxLevel = 1;
+    save.levelLocksRestoredV1 = true;
+  } else {
+    save.maxLevel = Math.max(1, Math.min(MAX_LEVEL, Math.floor(Number(save.maxLevel) || 1)));
+  }
 
   // Сброс выполняется по местному времени устройства в субботу в 23:59.
   const now = new Date();
