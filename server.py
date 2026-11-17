@@ -37,18 +37,31 @@ def ensure_schema(conn):
         )
     """)
     # Preserve existing all-time scores while removing legacy account/payment tables.
-    # Preserve existing all-time scores, then remove old account/payment tables.
     conn.execute("""
-        INSERT INTO ru_players (player_id, display_name, best_score)
-        SELECT md5('legacy-player:' || telegram_id::text)::uuid,
-               display_name, best_score
-        FROM players
-        WHERE best_score > 0
-        ON CONFLICT (player_id) DO UPDATE SET
-            best_score = GREATEST(ru_players.best_score, EXCLUDED.best_score)
+        CREATE TABLE IF NOT EXISTS app_migrations (
+            name TEXT PRIMARY KEY,
+            applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
     """)
-    conn.execute("DROP TABLE IF EXISTS star_payments, star_invoices, star_recoveries")
-    conn.execute("DROP TABLE IF EXISTS players")
+    migration = conn.execute("""
+        INSERT INTO app_migrations (name)
+        VALUES ('remove_messenger_accounts_v1')
+        ON CONFLICT DO NOTHING
+        RETURNING name
+    """).fetchone()
+    if migration:
+        # Preserve existing all-time scores once, then remove old account/payment tables.
+        conn.execute("""
+            INSERT INTO ru_players (player_id, display_name, best_score)
+            SELECT md5('legacy-player:' || telegram_id::text)::uuid,
+                   display_name, best_score
+            FROM players
+            WHERE best_score > 0
+            ON CONFLICT (player_id) DO UPDATE SET
+                best_score = GREATEST(ru_players.best_score, EXCLUDED.best_score)
+        """)
+        conn.execute("DROP TABLE IF EXISTS star_payments, star_invoices, star_recoveries")
+        conn.execute("DROP TABLE IF EXISTS players")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS online_sessions (
             session_id UUID PRIMARY KEY,
