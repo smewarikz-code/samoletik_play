@@ -12,7 +12,6 @@ CORS(app, resources={r"/api/*": {"origins": allowed_origin}},
      methods=["GET", "POST", "OPTIONS"], allow_headers=["Content-Type"])
 
 MAX_SCORE = 10_000_000
-TELEGRAM_AUTH_MAX_AGE = 24 * 60 * 60
 def database_url():
     url = os.environ.get("DATABASE_URL", "").strip()
     if url.startswith("postgres://"):
@@ -34,6 +33,15 @@ def ensure_schema(conn):
             display_name TEXT NOT NULL,
             username TEXT,
             best_score INTEGER NOT NULL DEFAULT 0,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS ru_players (
+            player_id UUID PRIMARY KEY,
+            display_name TEXT NOT NULL,
+            best_score INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
     """)
@@ -131,7 +139,7 @@ def submit_score():
     if score < 0 or score > MAX_SCORE:
         return jsonify({"error": "score_out_of_range"}), 400
 
-    # RuStore/native clients use a persistent installation UUID; Telegram auth is not required.
+    # The standalone app uses a persistent installation UUID; no external account is required.
     try:
         player_id = str(uuid.UUID(str(payload.get("playerId", ""))))
     except (ValueError, TypeError, AttributeError):
