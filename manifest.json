@@ -4,7 +4,7 @@
   "dir": "ltr",
   "display": "fullscreen",
   "name": "Самолётик: Эра приключений",
-  "orientation": "landscape",
+  "orientation": "portrait",
   "scope": "/samoletik_play/",
   "short_name": "Самолётик",
   "start_url": "/samoletik_play/",
