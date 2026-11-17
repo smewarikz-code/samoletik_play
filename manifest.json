@@ -1,13 +1,28 @@
+
 {
-  "background_color": "#ffffff",
+  "background_color": "#87ceeb",
   "dir": "ltr",
-  "display": "standalone",
+  "display": "fullscreen",
   "name": "Самолётик: Эра приключений",
-  "orientation": "any",
-  "scope": "https://smewarikz-code.github.io/samoletik_play/",
+  "orientation": "landscape",
+  "scope": "/samoletik_play/",
   "short_name": "Самолётик",
-  "start_url": "https://smewarikz-code.github.io/samoletik_play/",
-  "theme_color": "#ffffff",
-  "id": "ru.samoletik.adventure",
-  "description": "Увлекательная игра про самолётик, приключения и рекорды."
+  "start_url": "/samoletik_play/",
+  "theme_color": "#2196f3",
+  "description": "Увлекательная аркадная игра про самолётик",
+  "lang": "ru",
+  "icons": [
+    {
+      "src": "/samoletik_play/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/samoletik_play/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
 }
