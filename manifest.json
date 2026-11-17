@@ -1,0 +1,13 @@
+{
+  "background_color": "#87ceeb",
+  "dir": "ltr",
+  "display": "fullscreen",
+  "name": "Самолётик: Эра приключений",
+  "orientation": "landscape",
+  "scope": "/",
+  "short_name": "Самолётик",
+  "start_url": "/",
+  "theme_color": "#2196f3",
+  "description": "Увлекательная аркадная игра про самолётик",
+  "lang": "ru"
+}
