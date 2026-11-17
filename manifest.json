@@ -1,3 +1,4 @@
+
 {
   "background_color": "#87ceeb",
   "dir": "ltr",
@@ -9,5 +10,19 @@
   "start_url": "/",
   "theme_color": "#2196f3",
   "description": "Увлекательная аркадная игра про самолётик",
-  "lang": "ru"
+  "lang": "ru",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
 }
