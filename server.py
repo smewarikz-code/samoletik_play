@@ -28,15 +28,6 @@ def get_connection():
 
 def ensure_schema(conn):
     conn.execute("""
-        CREATE TABLE IF NOT EXISTS players (
-            telegram_id BIGINT PRIMARY KEY,
-            display_name TEXT NOT NULL,
-            username TEXT,
-            best_score INTEGER NOT NULL DEFAULT 0,
-            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )
-    """)
-    conn.execute("""
         CREATE TABLE IF NOT EXISTS ru_players (
             player_id UUID PRIMARY KEY,
             display_name TEXT NOT NULL,
@@ -45,6 +36,23 @@ def ensure_schema(conn):
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
     """)
+    # Preserve existing all-time scores while removing legacy account/payment tables.
+    conn.execute("""
+        DO $
+        BEGIN
+            IF to_regclass('public.players') IS NOT NULL THEN
+                INSERT INTO ru_players (player_id, display_name, best_score)
+                SELECT md5('legacy-player:' || telegram_id::text)::uuid,
+                       display_name, best_score
+                FROM players
+                WHERE best_score > 0
+                ON CONFLICT (player_id) DO UPDATE SET
+                    best_score = GREATEST(ru_players.best_score, EXCLUDED.best_score);
+            END IF;
+        END $;
+    """)
+    conn.execute("DROP TABLE IF EXISTS star_payments, star_invoices, star_recoveries")
+    conn.execute("DROP TABLE IF EXISTS players")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS online_sessions (
             session_id UUID PRIMARY KEY,
@@ -116,10 +124,7 @@ def leaderboard():
         with get_connection() as conn:
             ensure_schema(conn)
             rows = conn.execute("""
-                SELECT telegram_id, NULL::uuid AS player_id, display_name, username, best_score
-                FROM players WHERE best_score > 0
-                UNION ALL
-                SELECT NULL::bigint AS telegram_id, player_id, display_name, NULL::text AS username, best_score
+                SELECT player_id, display_name, best_score
                 FROM ru_players WHERE best_score > 0
                 ORDER BY best_score DESC
                 LIMIT %s
