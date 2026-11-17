@@ -37,19 +37,15 @@ def ensure_schema(conn):
         )
     """)
     # Preserve existing all-time scores while removing legacy account/payment tables.
+    # Preserve existing all-time scores, then remove old account/payment tables.
     conn.execute("""
-        DO $
-        BEGIN
-            IF to_regclass('public.players') IS NOT NULL THEN
-                INSERT INTO ru_players (player_id, display_name, best_score)
-                SELECT md5('legacy-player:' || telegram_id::text)::uuid,
-                       display_name, best_score
-                FROM players
-                WHERE best_score > 0
-                ON CONFLICT (player_id) DO UPDATE SET
-                    best_score = GREATEST(ru_players.best_score, EXCLUDED.best_score);
-            END IF;
-        END $;
+        INSERT INTO ru_players (player_id, display_name, best_score)
+        SELECT md5('legacy-player:' || telegram_id::text)::uuid,
+               display_name, best_score
+        FROM players
+        WHERE best_score > 0
+        ON CONFLICT (player_id) DO UPDATE SET
+            best_score = GREATEST(ru_players.best_score, EXCLUDED.best_score)
     """)
     conn.execute("DROP TABLE IF EXISTS star_payments, star_invoices, star_recoveries")
     conn.execute("DROP TABLE IF EXISTS players")
