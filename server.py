@@ -77,6 +77,15 @@ def ensure_schema(conn):
         )
     """)
     conn.execute("""
+        CREATE TABLE IF NOT EXISTS ru_players (
+            player_id UUID PRIMARY KEY,
+            display_name TEXT NOT NULL,
+            best_score INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    """)
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS online_sessions (
             session_id UUID PRIMARY KEY,
             last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -232,8 +241,13 @@ def leaderboard():
         with get_connection() as conn:
             ensure_schema(conn)
             rows = conn.execute("""
-                SELECT telegram_id, display_name, username, best_score FROM players
-                WHERE best_score > 0 ORDER BY best_score DESC, updated_at ASC LIMIT %s
+                SELECT telegram_id, NULL::uuid AS player_id, display_name, username, best_score
+                FROM players WHERE best_score > 0
+                UNION ALL
+                SELECT NULL::bigint AS telegram_id, player_id, display_name, NULL::text AS username, best_score
+                FROM ru_players WHERE best_score > 0
+                ORDER BY best_score DESC
+                LIMIT %s
             """, (limit,)).fetchall()
         return jsonify({"players": rows})
     except Exception:
@@ -249,26 +263,28 @@ def submit_score():
         return jsonify({"error": "score_must_be_integer"}), 400
     if score < 0 or score > MAX_SCORE:
         return jsonify({"error": "score_out_of_range"}), 400
+
+    # RuStore/native clients use a persistent installation UUID; Telegram auth is not required.
     try:
-        player = verify_telegram_init_data(payload.get("initData", ""))
-    except RuntimeError:
-        app.logger.exception("Telegram authentication is not configured")
-        return jsonify({"error": "server_auth_not_configured"}), 503
-    if not player:
-        return jsonify({"error": "invalid_telegram_auth"}), 401
+        player_id = str(uuid.UUID(str(payload.get("playerId", ""))))
+    except (ValueError, TypeError, AttributeError):
+        return jsonify({"error": "invalid_player_id"}), 400
+    display_name = str(payload.get("displayName") or "Игрок").strip()
+    display_name = "".join(ch for ch in display_name if ch.isprintable())[:24] or "Игрок"
+
     try:
         with get_connection() as conn:
             ensure_schema(conn)
             row = conn.execute("""
-                INSERT INTO players (telegram_id, display_name, username, best_score)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (telegram_id) DO UPDATE SET
-                    display_name = EXCLUDED.display_name, username = EXCLUDED.username,
-                    best_score = GREATEST(players.best_score, EXCLUDED.best_score),
-                    updated_at = CASE WHEN EXCLUDED.best_score > players.best_score
-                                      THEN NOW() ELSE players.updated_at END
-                RETURNING display_name, best_score
-            """, (player["telegram_id"], player["display_name"], player["username"], score)).fetchone()
+                INSERT INTO ru_players (player_id, display_name, best_score)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (player_id) DO UPDATE SET
+                    display_name = EXCLUDED.display_name,
+                    best_score = GREATEST(ru_players.best_score, EXCLUDED.best_score),
+                    updated_at = CASE WHEN EXCLUDED.best_score > ru_players.best_score
+                                      THEN NOW() ELSE ru_players.updated_at END
+                RETURNING player_id, display_name, best_score
+            """, (player_id, display_name, score)).fetchone()
         return jsonify({"ok": True, "player": row})
     except Exception:
         app.logger.exception("Could not save score")
