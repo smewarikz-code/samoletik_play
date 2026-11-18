@@ -23,6 +23,38 @@
     display:inline-block; width:7px; height:7px; margin:0 6px 1px 0;
     border-radius:50%; background:#67e59a; box-shadow:0 0 7px rgba(103,229,154,.8);
   }
+
+  /* Красивое внутриигровое окно первого знакомства */
+  #name-setup-overlay {
+    position:fixed; inset:0; z-index:1000; display:flex; align-items:center; justify-content:center;
+    padding:22px; box-sizing:border-box; background:rgba(3,12,29,.76); backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+  }
+  #name-setup-card {
+    width:min(100%, 360px); box-sizing:border-box; padding:26px 22px 22px; text-align:center;
+    color:#f7fbff; border:1px solid rgba(255,220,137,.72); border-radius:24px;
+    background:linear-gradient(155deg, rgba(25,77,119,.98), rgba(7,26,52,.99) 72%);
+    box-shadow:0 22px 70px rgba(0,0,0,.5), inset 0 1px rgba(255,255,255,.16);
+    font-family:Arial,sans-serif;
+  }
+  #name-setup-icon { font-size:42px; line-height:1; margin-bottom:12px; filter:drop-shadow(0 4px 8px rgba(0,0,0,.35)); }
+  #name-setup-card h2 { margin:0 0 8px; font-size:23px; font-weight:900; letter-spacing:.2px; }
+  #name-setup-card p { margin:0 0 19px; color:#c9d9ec; font-size:14px; line-height:1.45; }
+  #name-setup-input {
+    width:100%; box-sizing:border-box; padding:14px 15px; border:2px solid #6eb8ee; border-radius:13px;
+    outline:none; background:rgba(3,18,39,.8); color:white; font-size:18px; text-align:center;
+    box-shadow:inset 0 2px 8px rgba(0,0,0,.24);
+  }
+  #name-setup-input:focus { border-color:#ffd477; box-shadow:0 0 0 3px rgba(255,212,119,.16); }
+  #name-setup-hint { margin:9px 0 18px; color:#9fb7d2; font-size:12px; }
+  #name-setup-submit {
+    width:100%; padding:14px 18px; border:0; border-radius:13px; color:#17243a; font-size:16px; font-weight:900;
+    background:linear-gradient(180deg,#ffe39a,#e9b94f); box-shadow:0 5px 0 #a87928,0 9px 18px rgba(0,0,0,.25);
+    cursor:pointer; touch-action:manipulation;
+  }
+  #name-setup-submit:active { transform:translateY(2px); box-shadow:0 3px 0 #a87928,0 6px 12px rgba(0,0,0,.22); }
+  @media (max-width:380px) { #name-setup-card { padding:23px 18px 20px; } #name-setup-card h2 {font-size:21px;} }
+
 </style>
 </head>
 <body>
@@ -316,16 +348,32 @@ function load(){
 function persist(){ try { localStorage.setItem('samoletikSaveV4', JSON.stringify(save)); } catch(e){} }
 load();
 persist();
-if (shouldAskInitialPlayerName) {
-  let initialName = '';
-  try {
-    initialName = window.prompt('Добро пожаловать! Как тебя называть? (до 12 символов)', '') || '';
-  } catch (e) {}
-  initialName = String(initialName).trim().replace(/\s+/g, ' ').slice(0, 12);
-  save.playerName = initialName || 'Игрок';
-  save.playerNameSetupV1 = true;
-  persist();
+function showInitialPlayerNameDialog(){
+  const overlay = document.createElement('div');
+  overlay.id = 'name-setup-overlay';
+  overlay.innerHTML = `
+    <section id="name-setup-card" role="dialog" aria-modal="true" aria-labelledby="name-setup-title">
+      <div id="name-setup-icon" aria-hidden="true">✈️</div>
+      <h2 id="name-setup-title">Добро пожаловать!</h2>
+      <p>Как тебя называть в мире приключений?</p>
+      <input id="name-setup-input" type="text" maxlength="12" autocomplete="nickname" placeholder="Твоё имя" aria-label="Имя игрока">
+      <div id="name-setup-hint">До 12 символов · Имя появится в таблице рекордов</div>
+      <button id="name-setup-submit" type="button">Начать приключение</button>
+    </section>`;
+  document.body.appendChild(overlay);
+  const input = overlay.querySelector('#name-setup-input');
+  const finish = () => {
+    const cleanName = String(input.value || '').trim().replace(/\s+/g, ' ').slice(0, 12);
+    save.playerName = cleanName || 'Игрок';
+    save.playerNameSetupV1 = true;
+    persist();
+    overlay.remove();
+  };
+  overlay.querySelector('#name-setup-submit').addEventListener('click', finish);
+  input.addEventListener('keydown', event => { if (event.key === 'Enter') finish(); });
+  requestAnimationFrame(() => input.focus());
 }
+if (shouldAskInitialPlayerName) showInitialPlayerNameDialog();
 
 
 /* ============ Масштаб и ресайз ============ */
