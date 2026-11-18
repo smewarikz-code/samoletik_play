@@ -262,6 +262,7 @@ const UPGRADES = {
 
 /* ============ Сохранение и НЕДЕЛЬНЫЙ РЕКОРД ============ */
 let save;
+let shouldAskInitialPlayerName = false;
 function getSaturdayCalendarKey(date = new Date()){
   const saturday = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   saturday.setHours(0,0,0,0);
@@ -287,6 +288,7 @@ function load(){
   save.maxLevel = Math.max(1, Math.min(MAX_LEVEL, Number(save.maxLevel) || 1));
 
   delete save.saturdayResetKey;
+  shouldAskInitialPlayerName = !String(save.playerName || '').trim() && !save.playerNameSetupV1;
   if (!save.playerName) save.playerName = 'Игрок';
   if (!Array.isArray(save.localLeaderboard)) save.localLeaderboard = [];
   if(!save.owned) save.owned = { classic:true, gold:false, diamond:false, cosmic:false };
@@ -314,6 +316,16 @@ function load(){
 function persist(){ try { localStorage.setItem('samoletikSaveV4', JSON.stringify(save)); } catch(e){} }
 load();
 persist();
+if (shouldAskInitialPlayerName) {
+  let initialName = '';
+  try {
+    initialName = window.prompt('Добро пожаловать! Как тебя называть? (до 12 символов)', '') || '';
+  } catch (e) {}
+  initialName = String(initialName).trim().replace(/\s+/g, ' ').slice(0, 12);
+  save.playerName = initialName || 'Игрок';
+  save.playerNameSetupV1 = true;
+  persist();
+}
 
 
 /* ============ Масштаб и ресайз ============ */
