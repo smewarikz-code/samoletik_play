@@ -283,7 +283,10 @@ function mulberry(a){
           trail:'gold', crash:'gold',
           bonus:'50% шанс выжить после первого удара в уровне', luckyChance: 0.5 },
   diamond:{ name:'Бриллиантовый',price:1000, body:'#e4f6ff', edge:'#3fa4e0', shade:'#a8ddf5', trail:'ice',   crash:'shards', bonus:'Щит: спасает от первого удара', spark:true },
-  cosmic: { name:'Прозрачный',   price:2000, body:'#eef8ff', edge:'#9cc4d8', shade:'#d8eef8', trail:'ghost', crash:'fade',   bonus:'Фазировка: проход сквозь одну трубу (1 раз за уровень)', phase:true }
+  cosmic: { name:'Прозрачный',   price:2000, body:'#eef8ff', edge:'#9cc4d8', shade:'#d8eef8', trail:'ghost', crash:'fade',   bonus:'Фазировка: проход сквозь одну трубу (1 раз за уровень)', phase:true },
+  emerald:{ name:'Изумрудный', price:1500, body:'#4ee0a1', edge:'#087b55', shade:'#20b77c', trail:'emerald', crash:'emerald', bonus:'Каждые 5 собранных звёздочек дают +2 дополнительные ⭐', emeraldCollector:true },
+  storm:  { name:'Грозовой', price:2200, body:'#9bb8ff', edge:'#354caa', shade:'#647fe0', trail:'storm', crash:'storm', bonus:'Автоматически замедляет время на 1,5 секунды при опасном сближении с бомбой (1 раз за уровень)', stormReflex:true },
+  phoenix:{ name:'Феникс', price:3000, body:'#ff9b52', edge:'#a93624', shade:'#f05a35', trail:'fire', crash:'gold', bonus:'Одно возрождение с короткой неуязвимостью', revive:true }
 };
 
 // Постоянные улучшения самолёта: уровни покупаются за звёзды.
@@ -323,7 +326,8 @@ function load(){
   shouldAskInitialPlayerName = !save.playerNameSetupV2;
   if (!save.playerName) save.playerName = 'Игрок';
   if (!Array.isArray(save.localLeaderboard)) save.localLeaderboard = [];
-  if(!save.owned) save.owned = { classic:true, gold:false, diamond:false, cosmic:false };
+  if(!save.owned) save.owned = { classic:true, gold:false, diamond:false, cosmic:false, emerald:false, storm:false, phoenix:false };
+  for (const id of ['emerald','storm','phoenix']) if (typeof save.owned[id] !== 'boolean') save.owned[id] = false;
   if(!save.upgrades || typeof save.upgrades !== 'object') save.upgrades = {};
   for (const id of Object.keys(UPGRADES)) save.upgrades[id] = Math.max(0, Math.min(3, Number(save.upgrades[id]) || 0));
   delete save.upgrades.engine; delete save.upgrades.hull;
@@ -380,6 +384,11 @@ if (shouldAskInitialPlayerName) showInitialPlayerNameDialog();
 
 /* ============ Масштаб и ресайз ============ */
 let bgCache = {}, pipePatterns = {}, planeCache = {}, cloudSpr = null;
+const planeImages = {};
+for (const id of ['classic','gold','diamond','cosmic','emerald','storm','phoenix']) {
+  const img = new Image(); img.src = 'planes/' + id + '.png';
+  img.onload = () => { planeCache[id] = null; }; planeImages[id] = img;
+}
 
 function resize(){
   // Учитываем изменение высоты окна на мобильных устройствах.
@@ -408,6 +417,8 @@ resize();
 
 /* ============ Спрайт Самолётик: Эра приключений ============ */
 function planeSprite(skinId){
+  const real = planeImages[skinId];
+  if (real && real.complete && real.naturalWidth > 0) return real;
   if (planeCache[skinId]) return planeCache[skinId];
   const sk = SKINS[skinId];
   const c = document.createElement('canvas');
@@ -945,7 +956,7 @@ let luckyUsed = false;
 let leaderboardScroll = 0, leaderboardDrag = null;
 let shopScroll = 0, shopDrag = null, armorUses = 0;
 function shopSideBySide(){ return W >= 700*S; }
-function shopContentHeight(){ return shopSideBySide() ? 92*S + 4*94*S + 24*S : 92*S + 4*94*S + 34*S + 4*82*S; }
+function shopContentHeight(){ return shopSideBySide() ? 92*S + 7*94*S + 24*S : 92*S + 7*94*S + 34*S + 4*82*S; }
 
 
 function haptic(type){
@@ -1124,6 +1135,7 @@ function drawAchievements(){
 }
 
 let powerups = [], magnetT = 0, slowT = 0;
+let emeraldCollected = 0, stormSlowUsed = false;
 /* ============ Управление ============ */
 function startGame(lvl){
   lastStart = lvl;
@@ -1133,7 +1145,7 @@ function startGame(lvl){
   shopEligibleScore = 0;
   plane.x = Math.min(W*.28, 160*S);
   plane.y = H*.45; plane.vy = 0; plane.angle = 0;
-  pipes = []; hazards = []; collectibles = []; powerups = []; magnetT = 0; slowT = 0; pipeCount = 0; hazardTimer = 260; fx = []; spawnTimer = 0; shieldT = 0; shieldUsed = false;
+  pipes = []; hazards = []; collectibles = []; powerups = []; magnetT = 0; slowT = 0; emeraldCollected = 0; stormSlowUsed = false; pipeCount = 0; hazardTimer = 260; fx = []; spawnTimer = 0; shieldT = 0; shieldUsed = false;
   phaseT = 0; phaseUsed = false; luckyUsed = false; armorUses = 0; 
   themeIdx = Math.floor(((lvl|0)-1)/2) % THEMES.length;
   initWx();
@@ -1401,6 +1413,7 @@ function finishGame(win){
   if (!win){ shakeT = 18; spawnCrash(plane.x, plane.y); haptic('heavy'); }
 
   let earnedStars = Math.floor(shopEligibleScore / 10); // В магазин идут только очки за пройденные баррикады
+  
   save.stars += earnedStars;
   save.games++; dailyAdd('games',1);
   if (score > save.best) save.best = score;
@@ -1439,6 +1452,13 @@ function finishGame(win){
   if (save.skin === 'cosmic' && !phaseUsed){
     phaseUsed = true; phaseT = 50;
     spawnPhase(); haptic('medium');
+    return;
+  }
+  if (save.skin === 'phoenix' && !phaseUsed){
+    phaseUsed = true; phaseT = 85;
+    plane.vy = FLAPV * 0.9;
+    plane.y = Math.max(PLANE_R + 8*S, Math.min(H-GROUND_H-PLANE_R-8*S, plane.y));
+    spawnPhase(); haptic('heavy');
     return;
   }
     if (save.skin === 'gold' && !luckyUsed){
@@ -1516,6 +1536,14 @@ function step(k){
     const h=hazards[i];
     h.x -= speed*k;
     const dx=(plane.x-h.x)/h.rx, dy=(plane.y-h.y)/h.ry;
+    // Грозовой рефлекс: один раз за уровень автоматически замедляет полёт
+    // при опасном, но ещё безопасном сближении с бомбой.
+    if (save.skin === 'storm' && !stormSlowUsed && phaseT <= 0 && dx*dx + dy*dy < 5.2 && dx*dx + dy*dy >= 0.72) {
+      stormSlowUsed = true;
+      slowT = Math.max(slowT, 90);
+      pushFx({x:plane.x,y:plane.y,vx:0,vy:0,life:24,max:24,type:'ring',r:22*S,col:'115,160,255'});
+      haptic('light');
+    }
     if (hazardHit(h) && phaseT<=0){
       // При столкновении бомбочка ярко взрывается: вспышка, ударная волна и осколки огня.
       pushFx({x:h.x,y:h.y,vx:0,vy:0,life:12,max:12,type:'circle',r:30*S,col:'255,245,190'});
@@ -1565,8 +1593,17 @@ function step(k){
       const collectiblePoints = Math.round(5 * magnetMultiplier);
       addScore(collectiblePoints, false);
       dailyAdd('collected',1); save.totalCollected=(Number(save.totalCollected)||0)+1; checkAchievements();
-      // Каждая собранная в полёте звёздочка сразу приносит 2 ⭐ на баланс.
+      // Каждая собранная в полёте звёздочка приносит 2 ⭐ на баланс.
       save.stars = Math.max(0, Number(save.stars) || 0) + 2;
+      // Бонус Изумрудного: каждая пятая собранная звёздочка приносит ещё 2 ⭐.
+      if (save.skin === 'emerald') {
+        emeraldCollected++;
+        if (emeraldCollected % 5 === 0) {
+          save.stars += 2;
+          for(let n=0;n<10;n++) pushFx({x:plane.x,y:plane.y,vx:(Math.random()-.5)*3*S,vy:(Math.random()-.5)*3*S,life:24,max:24,type:'star4',r:3.5*S,col:'80,235,165'});
+          haptic('medium');
+        }
+      }
       persist();
       haptic('medium');
       for(let n=0;n<8;n++) pushFx({x:c.x,y:c.y,vx:(Math.random()-.5)*3*S,vy:(Math.random()-.5)*3*S,life:18,max:18,type:'star4',r:3*S,col:'255,220,70'});
@@ -2000,7 +2037,9 @@ function drawPlane(x,y,ang,scale){
   const spr = planeSprite(save.skin);
   ctx.save();
   ctx.translate(x,y); ctx.rotate(ang);
-  ctx.drawImage(spr, -20*S*scale, -20*S*scale, 40*S*scale, 40*S*scale);
+  const aspect = (spr.width || spr.naturalWidth || 320) / (spr.height || spr.naturalHeight || 190);
+  const dw = 48*S*scale, dh = dw/aspect;
+  ctx.drawImage(spr, -dw/2, -dh/2, dw, dh);
   ctx.restore();
   if (magnetT>0){ ctx.fillStyle='#ff6b9b'; ctx.fillText('МАГНИТ',14*S,94*S); }
   if (slowT>0){ ctx.fillStyle='#b58cff'; ctx.fillText('ЗАМЕДЛЕНИЕ',14*S,114*S); }
@@ -2423,7 +2462,7 @@ function drawShop(){
     y += 24*S;
   }
   const rowH = 84*S;
-  for (const id of ['classic','gold','diamond','cosmic']){
+  for (const id of ['classic','gold','diamond','cosmic','emerald','storm','phoenix']){
     const sk = SKINS[id];
     const owned = save.owned[id], equipped = save.skin === id;
     panel(leftX, y, colW, rowH);
@@ -2442,7 +2481,9 @@ function drawShop(){
       fallbackCtx.lineTo(45,90); fallbackCtx.lineTo(28,132);
       fallbackCtx.closePath(); fallbackCtx.fill();
     }
-    ctx.drawImage(spr, leftX+8*S, y+rowH/2-26*S, 52*S, 52*S);
+    const spriteAspect = (spr.width || spr.naturalWidth || 320) / (spr.height || spr.naturalHeight || 190);
+    const spriteW = 54*S, spriteH = spriteW/spriteAspect;
+    ctx.drawImage(spr, leftX+7*S, y+rowH/2-spriteH/2, spriteW, spriteH);
     const tx = leftX + 66*S;
     const btnW = Math.min(112*S, colW*.32), btnH = 40*S;
     const tw = colW - 66*S - btnW - 20*S;
