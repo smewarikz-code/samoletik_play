@@ -2261,11 +2261,22 @@ function drawMenu(){
   const y0 = Math.max(4, H - blockH - bottom);
   const x = W/2 - bw/2;
 
-  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = '#ffffff';  ctx.shadowColor = 'rgba(0,0,0,.9)';
+  // Рекорд и баланс звёзд показываем одной строкой над кнопками.
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.shadowColor = 'rgba(0,0,0,.9)';
   ctx.shadowBlur = Math.max(3, 7*S);
   ctx.font = '800 ' + Math.round(Math.max(13, Math.min(18*S, H*.032))) + 'px Arial, sans-serif';
-  ctx.fillText('Рекорд: ' + save.best, W/2, Math.max(18, y0-9*S));
+  const recordLabel = 'Рекорд: ' + save.best;
+  const starsLabel = '★ ' + Math.max(0, Number(save.stars) || 0);
+  const recordWidth = ctx.measureText(recordLabel).width;
+  const starsWidth = ctx.measureText(starsLabel).width;
+  const infoGap = Math.max(12*S, 4);
+  const infoX = (W - recordWidth - infoGap - starsWidth) / 2;
+  const infoY = Math.max(18, y0-9*S);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(recordLabel, infoX, infoY);
+  ctx.fillStyle = '#ffd34d';
+  ctx.fillText(starsLabel, infoX + recordWidth + infoGap, infoY);
   ctx.shadowBlur = 0;
 
   button(x, y0,                    bw, bh, 'Начать игру',  ()=>showBriefing(1), '#f5a623');
