@@ -2547,7 +2547,7 @@ function drawRecords(){
   };
 
   // Левая таблица — локальный топ игроков по лучшему результату.
-  const leftHeaderH = 42*S;
+  const leftHeaderH = 88*S;
   const listY = topY + leftHeaderH;
   const listBottom = H - 28*S;
   const listH = Math.max(80*S, listBottom - listY);
@@ -2562,8 +2562,41 @@ function drawRecords(){
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = '#ffe08a';
   ctx.font = '900 ' + Math.round(Math.max(13*S, 11)) + 'px Arial, sans-serif';
-  ctx.fillText(translateText('ТОП ПО ОЧКАМ'), leftX+colW/2, topY+leftHeaderH/2, colW-12*S);
+  ctx.fillText(translateText('🏆 ЛУЧШИЕ ПИЛОТЫ'), leftX+colW/2, topY+14*S, colW-12*S);
   ctx.restore();
+
+  // Мини-подиум трёх лучших пилотов над полным списком.
+  const podium = leaderboard.slice(0, 3);
+  const podiumColors = ['#f4c542', '#c8d3df', '#c98755'];
+  const podiumNames = ['🥇', '🥈', '🥉'];
+  const podGap = 4*S, podW = (colW - 16*S - podGap*2)/3;
+  for (let p=0; p<3; p++) {
+    const px = leftX + 8*S + p*(podW+podGap), py = topY + 27*S;
+    ctx.save();
+    const pg = ctx.createLinearGradient(0, py, 0, py+53*S);
+    pg.addColorStop(0, p===0 ? 'rgba(126,91,15,.82)' : 'rgba(13,54,91,.92)');
+    pg.addColorStop(1, 'rgba(3,22,59,.96)');
+    ctx.fillStyle = pg; roundRect(px,py,podW,53*S,7*S); ctx.fill();
+    ctx.strokeStyle = podiumColors[p]; ctx.lineWidth = p===0 ? 2*S : 1*S;
+    roundRect(px,py,podW,53*S,7*S); ctx.stroke();
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle=podiumColors[p]; ctx.font='900 '+Math.round(13*S)+'px Arial';
+    ctx.fillText(podiumNames[p],px+podW/2,py+11*S);
+    const player = podium[p];
+    if (player) {
+      let pn=String(player.display_name || player.name || 'Игрок');
+      ctx.fillStyle='#fff'; ctx.font='800 '+Math.round(Math.max(8*S,7))+'px Arial';
+      while(pn.length>1 && ctx.measureText(pn).width>podW-6*S) pn=pn.slice(0,-1);
+      if(pn !== String(player.display_name || player.name || 'Игрок')) pn+='…';
+      ctx.fillText(pn,px+podW/2,py+29*S,podW-6*S);
+      ctx.fillStyle='#ffd34d'; ctx.font='900 '+Math.round(10*S)+'px Arial';
+      ctx.fillText(String(Number(player.best_score ?? player.score)||0)+' оч.',px+podW/2,py+43*S,podW-6*S);
+    } else {
+      ctx.fillStyle='rgba(255,255,255,.55)'; ctx.font='700 '+Math.round(8*S)+'px Arial';
+      ctx.fillText('Пока пусто',px+podW/2,py+33*S,podW-4*S);
+    }
+    ctx.restore();
+  }
 
   // Область списка обрезается по границам таблицы; прокрутка работает колесом и свайпом.
   ctx.save();
@@ -2594,7 +2627,9 @@ function drawRecords(){
   for (let i=firstIndex; i<lastIndex; i++) {
     const item = leaderboard[i];
     const yy = rowsTop + i*leaderboardRowH - leaderboardScroll;
-    if (i % 2 === 0) { ctx.fillStyle = 'rgba(255,255,255,.055)'; ctx.fillRect(leftX+4*S, yy, colW-8*S, leaderboardRowH); }
+    const isMe = String(item.player_id || item.playerId || item.id || '') === String(leaderboardPlayerId);
+    if (isMe) { ctx.fillStyle = 'rgba(255,199,64,.20)'; ctx.fillRect(leftX+4*S, yy, colW-8*S, leaderboardRowH); ctx.fillStyle='#ffd34d'; ctx.fillRect(leftX+4*S, yy, 3*S, leaderboardRowH); }
+    else if (i % 2 === 0) { ctx.fillStyle = 'rgba(255,255,255,.055)'; ctx.fillRect(leftX+4*S, yy, colW-8*S, leaderboardRowH); }
     ctx.textAlign = 'center';
     const rowCenterY = yy + leaderboardRowH/2;
     if (i < 3) {
@@ -2627,7 +2662,7 @@ function drawRecords(){
       ctx.fillText(String(i+1), rankCol, rowCenterY, 12*S);
     }
     let nm = String(item.display_name || item.name || 'Игрок');
-    ctx.textAlign = 'left'; ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'left'; ctx.fillStyle = isMe ? '#ffe08a' : '#ffffff';
     ctx.font = '800 ' + Math.round(Math.max(10*S, 9)) + 'px Arial, sans-serif';
     const nameMaxW = Math.max(12*S, scoreColX - nameColX - 30*S);
     while (nm.length > 1 && ctx.measureText(nm).width > nameMaxW) nm = nm.slice(0,-1);
