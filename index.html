@@ -320,7 +320,7 @@ function load(){
   save.maxLevel = Math.max(1, Math.min(MAX_LEVEL, Number(save.maxLevel) || 1));
 
   delete save.saturdayResetKey;
-  shouldAskInitialPlayerName = (!String(save.playerName || '').trim() || String(save.playerName).trim() === 'Игрок') && !save.playerNameSetupV1;
+  shouldAskInitialPlayerName = !save.playerNameSetupV2;
   if (!save.playerName) save.playerName = 'Игрок';
   if (!Array.isArray(save.localLeaderboard)) save.localLeaderboard = [];
   if(!save.owned) save.owned = { classic:true, gold:false, diamond:false, cosmic:false };
@@ -362,10 +362,12 @@ function showInitialPlayerNameDialog(){
     </section>`;
   document.body.appendChild(overlay);
   const input = overlay.querySelector('#name-setup-input');
+  const existingName = String(save.playerName || '').trim();
+  input.value = existingName && existingName !== 'Игрок' ? existingName.slice(0, 12) : '';
   const finish = () => {
     const cleanName = String(input.value || '').trim().replace(/\s+/g, ' ').slice(0, 12);
-    save.playerName = cleanName || 'Игрок';
-    save.playerNameSetupV1 = true;
+    save.playerName = cleanName || existingName || 'Игрок';
+    save.playerNameSetupV2 = true;
     persist();
     overlay.remove();
   };
