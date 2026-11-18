@@ -1,14 +1,1 @@
-[
-  {
-    "relation": [
-      "delegate_permission/common.handle_all_urls"
-    ],
-    "target": {
-      "namespace": "android_app",
-      "package_name": "ru.samoletik.adventure",
-      "sha256_cert_fingerprints": [
-        "E2:D9:E0:23:B2:30:1D:36:52:B4:D0:07:68:D3:65:7B:37:3F:F3:CA:85:1C:28:5D:3B:8B:13:62:24:A1:53:FB"
-      ]
-    }
-  }
-]
+
