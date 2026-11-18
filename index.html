@@ -288,7 +288,7 @@ function load(){
   save.maxLevel = Math.max(1, Math.min(MAX_LEVEL, Number(save.maxLevel) || 1));
 
   delete save.saturdayResetKey;
-  shouldAskInitialPlayerName = !String(save.playerName || '').trim() && !save.playerNameSetupV1;
+  shouldAskInitialPlayerName = (!String(save.playerName || '').trim() || String(save.playerName).trim() === 'Игрок') && !save.playerNameSetupV1;
   if (!save.playerName) save.playerName = 'Игрок';
   if (!Array.isArray(save.localLeaderboard)) save.localLeaderboard = [];
   if(!save.owned) save.owned = { classic:true, gold:false, diamond:false, cosmic:false };
