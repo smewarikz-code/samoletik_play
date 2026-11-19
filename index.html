@@ -289,7 +289,7 @@ function themeOf(lvl){ return THEMES[themeIndexOf(lvl)] || THEMES[0]; }
 
 
 function levelSpeed(lvl){ return SPEEDV; } // Скорость самолёта не увеличивается при переходе на новые уровни.
-function levelGap(lvl){ return (lvl % 10 === 0) ? GAP * 0.50 : GAP; } // На каждом десятом уровне проход между блоками уже на 50%.
+function levelGap(lvl){ return (lvl % 5 === 0) ? GAP * 0.50 : GAP; } // На каждом пятом уровне проход между блоками уже на 50%.
 function levelSpacing(lvl){ return Math.max(170*S, 240*S - Math.min((lvl-1)*0.5*S, 70*S)); }
 
 function mulberry(a){
@@ -1386,8 +1386,9 @@ function spawnPipe(lvl){
       const midX = previous.x + PIPE_W + freeSpace/2;
       const safeTop = Math.max(previous.gapY-previous.gap/2, p.gapY-p.gap/2) + 20*S;
       const safeBottom = Math.min(previous.gapY+previous.gap/2, p.gapY+p.gap/2) - 20*S;
-      // Если проходы двух баррикад не пересекаются, бомбочку не создаём.
-      const spawnedHazard = safeTop < safeBottom && Math.random() < 0.24
+      // На каждом пятом уровне (5, 10, 15 ... 500) бомбочки отключены.
+      // На всех остальных уровнях шанс появления бомбочек остаётся прежним.
+      const spawnedHazard = lvl % 5 !== 0 && safeTop < safeBottom && Math.random() < 0.24
         ? spawnHazard(midX, (safeTop+safeBottom)/2) : null;
       // Собираемые звёздочки доступны на каждом уровне и дают +5 к игровому счёту.
       // Размещаем их так, чтобы они не пересекались с бомбочками.
@@ -2426,12 +2427,21 @@ function drawBriefing(){
   ctx.font = Math.round(14*S) + 'px Arial, sans-serif';
   ctx.fillStyle = '#24485b';
   ctx.fillText('Каждая даёт +5 очков к твоему рекорду.', W/2, py+169*S);
-  ctx.font = '700 ' + Math.round(17*S) + 'px Arial, sans-serif';
-  ctx.fillStyle = '#b45309';
-  ctx.fillText('💣 Бомбочка', W/2, py+214*S);
-  ctx.font = Math.round(14*S) + 'px Arial, sans-serif';
-  ctx.fillStyle = '#24485b';
-  ctx.fillText('Бомбочки между баррикадами взрываются при столкновении. Не касайся их!', W/2, py+238*S, pw-30*S);
+  if (briefingLevel % 5 === 0) {
+    ctx.font = '700 ' + Math.round(17*S) + 'px Arial, sans-serif';
+    ctx.fillStyle = '#b45309';
+    ctx.fillText('🚧 Узкий проход', W/2, py+214*S);
+    ctx.font = Math.round(14*S) + 'px Arial, sans-serif';
+    ctx.fillStyle = '#24485b';
+    ctx.fillText('Расстояние между блоками уменьшено на 50%. Будь осторожен!', W/2, py+238*S, pw-30*S);
+  } else {
+    ctx.font = '700 ' + Math.round(17*S) + 'px Arial, sans-serif';
+    ctx.fillStyle = '#b45309';
+    ctx.fillText('💣 Бомбочка', W/2, py+214*S);
+    ctx.font = Math.round(14*S) + 'px Arial, sans-serif';
+    ctx.fillStyle = '#24485b';
+    ctx.fillText('Бомбочки между баррикадами взрываются при столкновении. Не касайся их!', W/2, py+238*S, pw-30*S);
+  }
   if (hasBarrierMotion) {
     ctx.font = '700 ' + Math.round(17*S) + 'px Arial, sans-serif';
     ctx.fillStyle = '#b45309';
