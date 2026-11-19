@@ -210,6 +210,25 @@ const MAX_LEVEL = 500;
 const LEVEL_SCORE = 50;
 const WIN_SCORE = MAX_LEVEL * LEVEL_SCORE;
 
+// Realistic biome-specific pillar artwork. Each pair keeps one stable variant.
+const pillarSprites = Array.from({length:12}, (_, i) => {
+  const img = new Image();
+  img.src = `pillars/pillar-${i}.png`;
+  return img;
+});
+const pillarVariantsByScene = [
+  [4, 5, 7],       // Горы: древний камень
+  [10, 11, 6],     // Лес: мох, дерево, лианы
+  [4, 5, 7],       // Пустыня: песчаник
+  [2, 3, 0],       // Вулкан: трубы и металл
+  [0, 2, 3],       // Ночь: индустриальные столбы
+  [0, 3, 2],       // Неон: подсвеченный металл
+  [3, 0, 2],       // Космос: энергетические конструкции
+  [8, 9, 8],       // Льды: лёд и снег
+  [8, 10, 11],     // Океан: камень и природа
+  [10, 11, 6]      // Осень: дерево и заросший камень
+];
+
 /* ============ Генератор 250 тем (по 2 уровня на тему) ============ */
 const SCENES = [
   {name:'Горы',   pipe:'stone', dark:false},
@@ -1938,25 +1957,50 @@ function drawGround(){
   }
 }
 function drawPipes(){
-  const th=THEMES[themeIdx], st=pipeStyle(th.pipe);
+  const th=THEMES[themeIdx];
+  const sceneIndex = themeIdx % 10;
+  const variants = pillarVariantsByScene[sceneIndex] || [0, 1, 2];
   for(const p of pipes){
     const topH=p.gapY-p.gap/2, botY=p.gapY+p.gap/2, botH=H-GROUND_H-botY;
-    const segs=[[0,topH,'bottom'],[botY,botH,'top']];
+    if (p._pillarVariant === undefined) {
+      // Stable random appearance for this obstacle pair; never changes while flying.
+      p._pillarVariant = variants[Math.floor(Math.random() * variants.length)];
+    }
+    const sprite = pillarSprites[p._pillarVariant];
+    const useSprite = sprite && sprite.complete && sprite.naturalWidth > 0;
+    const segs=[[0,topH,'top'],[botY,botH,'bottom']];
     for(const seg of segs){
       const ry=seg[0], rh=seg[1]; if(rh<=0) continue;
-      ctx.save();
-      const body=ctx.createLinearGradient(p.x,0,p.x+PIPE_W,0); body.addColorStop(0,'rgba(0,0,0,.22)'); body.addColorStop(.18,'rgba(255,255,255,.25)'); body.addColorStop(.48,'rgba(255,255,255,.04)'); body.addColorStop(.82,'rgba(0,0,0,.08)'); body.addColorStop(1,'rgba(0,0,0,.28)');
-      ctx.fillStyle=st.pattern; ctx.fillRect(p.x,ry,PIPE_W,rh); ctx.fillStyle=th.pipeTint; ctx.fillRect(p.x,ry,PIPE_W,rh); ctx.fillStyle=body; ctx.fillRect(p.x,ry,PIPE_W,rh);
-      // Тонкие швы и блики материала
-      ctx.fillStyle='rgba(255,255,255,.22)'; ctx.fillRect(p.x+5*S,ry,2*S,rh);
-      ctx.fillStyle='rgba(0,0,0,.18)'; ctx.fillRect(p.x+PIPE_W-4*S,ry,3*S,rh);
-      const capH=24*S, capY=seg[2]==='bottom'?ry+rh-capH:ry;
-      const cap=ctx.createLinearGradient(p.x,capY,p.x,capY+capH); cap.addColorStop(0,'rgba(255,255,255,.38)'); cap.addColorStop(.22,st.cap); cap.addColorStop(1,'rgba(0,0,0,.28)');
-      ctx.fillStyle=cap; ctx.fillRect(p.x-5*S,capY,PIPE_W+10*S,capH);
-      ctx.strokeStyle='rgba(255,255,255,.48)'; ctx.lineWidth=1.2*S; ctx.strokeRect(p.x-5*S,capY,PIPE_W+10*S,capH);
-      ctx.fillStyle='rgba(255,255,255,.32)'; ctx.fillRect(p.x-3*S,capY+3*S,PIPE_W+6*S,2*S);
-      if(st.glow){ctx.shadowColor=st.glow;ctx.shadowBlur=8*S;ctx.strokeStyle=st.glow;ctx.lineWidth=2*S;ctx.strokeRect(p.x+3*S,capY+4*S,PIPE_W-6*S,capH-8*S);}
-      ctx.restore();
+      if (useSprite) {
+        ctx.save();
+        // Keep the visible pillar exactly within the original collision width.
+        // The upper pillar is vertically flipped so its detailed base faces the gap.
+        if (seg[2] === 'top') {
+          ctx.translate(p.x, ry + rh);
+          ctx.scale(1, -1);
+          ctx.drawImage(sprite, 0, 0, sprite.naturalWidth, sprite.naturalHeight,
+            0, 0, PIPE_W, rh);
+        } else {
+          ctx.drawImage(sprite, 0, 0, sprite.naturalWidth, sprite.naturalHeight,
+            p.x, ry, PIPE_W, rh);
+        }
+        ctx.restore();
+      } else {
+        // Original procedural pipes remain as a fallback while images load.
+        const st=pipeStyle(th.pipe);
+        ctx.save();
+        const body=ctx.createLinearGradient(p.x,0,p.x+PIPE_W,0); body.addColorStop(0,'rgba(0,0,0,.22)'); body.addColorStop(.18,'rgba(255,255,255,.25)'); body.addColorStop(.48,'rgba(255,255,255,.04)'); body.addColorStop(.82,'rgba(0,0,0,.08)'); body.addColorStop(1,'rgba(0,0,0,.28)');
+        ctx.fillStyle=st.pattern; ctx.fillRect(p.x,ry,PIPE_W,rh); ctx.fillStyle=th.pipeTint; ctx.fillRect(p.x,ry,PIPE_W,rh); ctx.fillStyle=body; ctx.fillRect(p.x,ry,PIPE_W,rh);
+        ctx.fillStyle='rgba(255,255,255,.22)'; ctx.fillRect(p.x+5*S,ry,2*S,rh);
+        ctx.fillStyle='rgba(0,0,0,.18)'; ctx.fillRect(p.x+PIPE_W-4*S,ry,3*S,rh);
+        const capH=24*S, capY=seg[2]==='bottom'?ry+rh-capH:ry;
+        const cap=ctx.createLinearGradient(p.x,capY,p.x,capY+capH); cap.addColorStop(0,'rgba(255,255,255,.38)'); cap.addColorStop(.22,st.cap); cap.addColorStop(1,'rgba(0,0,0,.28)');
+        ctx.fillStyle=cap; ctx.fillRect(p.x-5*S,capY,PIPE_W+10*S,capH);
+        ctx.strokeStyle='rgba(255,255,255,.48)'; ctx.lineWidth=1.2*S; ctx.strokeRect(p.x-5*S,capY,PIPE_W+10*S,capH);
+        ctx.fillStyle='rgba(255,255,255,.32)'; ctx.fillRect(p.x-3*S,capY+3*S,PIPE_W+6*S,2*S);
+        if(st.glow){ctx.shadowColor=st.glow;ctx.shadowBlur=8*S;ctx.strokeStyle=st.glow;ctx.lineWidth=2*S;ctx.strokeRect(p.x+3*S,capY+4*S,PIPE_W-6*S,capH-8*S);}
+        ctx.restore();
+      }
     }
   }
 }
