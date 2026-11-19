@@ -291,8 +291,9 @@ function mulberry(a){
 
 // Постоянные улучшения самолёта: уровни покупаются за звёзды.
 const UPGRADES = {
-  magnet: {name:'Звёздный магнит', desc:'Притягивает звёздочки', prices:[150,300,450], icon:'🧲'},
-  armor:  {name:'Бронепластина', desc:'Дополнительные шансы пережить столкновение', prices:[250,500,750], icon:'🛡️'}
+  magnet: {name:'Звёздный магнит', desc:'Притягивает звёздочки', prices:[150,300,450], icon:'magnet'},
+  armor:  {name:'Бронепластина', desc:'Дополнительные шансы пережить столкновение', prices:[250,500,750], icon:'armor'},
+  slow:   {name:'Хроно-модуль', desc:'Автоматически замедляет время при опасности', prices:[400,700,1000], icon:'slow'}
 };
 
 /* ============ Сохранение и НЕДЕЛЬНЫЙ РЕКОРД ============ */
@@ -1135,7 +1136,7 @@ function drawAchievements(){
 }
 
 let powerups = [], magnetT = 0, slowT = 0;
-let emeraldCollected = 0, stormSlowUsed = false;
+let emeraldCollected = 0, stormSlowUsed = false, upgradeSlowUsed = false;
 /* ============ Управление ============ */
 function startGame(lvl){
   lastStart = lvl;
@@ -1145,7 +1146,7 @@ function startGame(lvl){
   shopEligibleScore = 0;
   plane.x = Math.min(W*.28, 160*S);
   plane.y = H*.45; plane.vy = 0; plane.angle = 0;
-  pipes = []; hazards = []; collectibles = []; powerups = []; magnetT = 0; slowT = 0; emeraldCollected = 0; stormSlowUsed = false; pipeCount = 0; hazardTimer = 260; fx = []; spawnTimer = 0; shieldT = 0; shieldUsed = false;
+  pipes = []; hazards = []; collectibles = []; powerups = []; magnetT = 0; slowT = 0; emeraldCollected = 0; stormSlowUsed = false; upgradeSlowUsed = false; pipeCount = 0; hazardTimer = 260; fx = []; spawnTimer = 0; shieldT = 0; shieldUsed = false;
   phaseT = 0; phaseUsed = false; luckyUsed = false; armorUses = 0; 
   themeIdx = Math.floor(((lvl|0)-1)/2) % THEMES.length;
   initWx();
@@ -1369,11 +1370,7 @@ function spawnPipe(lvl){
           collectibles.push({type:'star', x:midX, y:starY, r:starR, spin:Math.random()*Math.PI*2, taken:false});
         }
       }
-      if (pipeCount % 5 === 0){
-        const types=['shield','magnet','slow'];
-        const type=types[Math.floor(Math.random()*types.length)];
-        powerups.push({type,x:midX,y:p.gapY,r:15*S,spin:0});
-      }
+      // Бонусы-подборы (щит, магнит и замедление) отключены.
     }
   }
 }
@@ -1544,6 +1541,13 @@ function step(k){
       pushFx({x:plane.x,y:plane.y,vx:0,vy:0,life:24,max:24,type:'ring',r:22*S,col:'115,160,255'});
       haptic('light');
     }
+    const chronoLevel = Math.max(0, Math.min(3, Number(save.upgrades?.slow) || 0));
+    if (chronoLevel > 0 && !upgradeSlowUsed && phaseT <= 0 && dx*dx + dy*dy < 5.2 && dx*dx + dy*dy >= 0.72) {
+      upgradeSlowUsed = true;
+      slowT = Math.max(slowT, 60 + chronoLevel*30);
+      pushFx({x:plane.x,y:plane.y,vx:0,vy:0,life:28,max:28,type:'ring',r:25*S,col:'125,205,255'});
+      haptic('light');
+    }
     if (hazardHit(h) && phaseT<=0){
       // При столкновении бомбочка ярко взрывается: вспышка, ударная волна и осколки огня.
       pushFx({x:h.x,y:h.y,vx:0,vy:0,life:12,max:12,type:'circle',r:30*S,col:'255,245,190'});
@@ -1565,16 +1569,8 @@ function step(k){
     if (h.x < -150*S) hazards.splice(i,1);
   }
 
-  for(let i=powerups.length-1;i>=0;i--){
-    const b=powerups[i]; b.x-=speed*k; b.spin+=.06*k;
-    if(Math.hypot(plane.x-b.x,plane.y-b.y)<PLANE_R+b.r){
-      if(b.type==='shield') phaseT=Math.max(phaseT,180);
-      if(b.type==='magnet') magnetT=600;
-      if(b.type==='slow') slowT=600;
-      haptic('medium'); powerups.splice(i,1); continue;
-    }
-    if(b.x < -40*S) powerups.splice(i,1);
-  }
+  // Сбор бонусов во время полёта отключён; массив оставлен для совместимости.
+  powerups.length = 0;
 
   for (let i=collectibles.length-1; i>=0; i--){
     const c = collectibles[i];
@@ -1727,9 +1723,13 @@ const levelBackgrounds = [
 function drawSky(){
   const bg = levelBackgrounds[((themeIdx % 10) + 10) % 10];
   if (bg && bg.complete && bg.naturalWidth > 0) {
-    const scale = Math.max(W / bg.naturalWidth, H / bg.naturalHeight);
+    // Медленное движение камеры создаёт эффект живого, объёмного фона.
+    // Небольшой запас масштаба не даёт появляться пустым краям при движении.
+    const driftX = Math.sin(t * 0.006 + themeIdx * 0.7) * 10 * S;
+    const driftY = Math.cos(t * 0.004 + themeIdx * 0.5) * 7 * S;
+    const scale = Math.max(W / bg.naturalWidth, H / bg.naturalHeight) * 1.07;
     const bw = bg.naturalWidth * scale, bh = bg.naturalHeight * scale;
-    ctx.drawImage(bg, (W-bw)/2, (H-bh)/2, bw, bh);
+    ctx.drawImage(bg, (W-bw)/2 + driftX, (H-bh)/2 + driftY, bw, bh);
     drawWeather(weatherForLevel(curLevel, THEMES[themeIdx].scene));
     return;
   }
@@ -1861,25 +1861,7 @@ function drawAmbientEffects(){
     }
   }
 
-  // Переливающиеся потоки воды в горах и на тропических островах.
-  if(scene === 'Горы' || scene === 'Океан'){
-    for(let i=0;i<5;i++){
-      const x = W*(.13+i*.19) + Math.sin(phase+i)*4*S;
-      const y = H*(.35+(i%3)*.11);
-      const len = H*(.12+(i%2)*.045);
-      ctx.strokeStyle = scene==='Океан' ? 'rgba(115,235,255,.28)' : 'rgba(190,250,255,.42)';
-      ctx.lineWidth=(1.4+(i%2))*S;
-      ctx.beginPath();
-      for(let j=0;j<7;j++){
-        const yy=y+len*j/6;
-        const xx=x+Math.sin(phase*1.8+j*.9+i)*3*S;
-        if(j===0) ctx.moveTo(xx,yy); else ctx.lineTo(xx,yy);
-      }
-      ctx.stroke();
-      ctx.fillStyle='rgba(220,255,255,.25)';
-      ctx.beginPath(); ctx.ellipse(x,y+len,8*S,2*S,0,0,Math.PI*2); ctx.fill();
-    }
-  }
+  // Вертикальные переливающиеся полосы воды отключены по просьбе игрока.
 
   // Пульсирующее свечение кратеров и редкие искры над вулканом.
   if(scene === 'Вулкан'){
@@ -2015,7 +1997,7 @@ function drawCollectibles(){
   }
 }
 
-function drawPowerups(){ for(const b of powerups){ ctx.save(); ctx.translate(b.x,b.y); ctx.rotate(b.spin); ctx.fillStyle=b.type==='shield'?'#69d8ff':b.type==='magnet'?'#ff6b9b':'#b58cff'; ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=12*S; ctx.beginPath(); ctx.arc(0,0,b.r,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0; ctx.font='700 '+Math.round(17*S)+'px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='#fff'; ctx.fillText(b.type==='shield'?'🛡️':b.type==='magnet'?'🧲':'⏱️',0,1*S); ctx.restore(); } }
+function drawPowerups(){ /* Бонусы-подборы отключены. */ }
 function drawStar(x, y, size){
   ctx.save();
   ctx.translate(x, y);
@@ -2432,6 +2414,28 @@ function drawLevels(){
   if (page < totalPages-1) button(W - bw - 16*S, by, bw, bh, '→', ()=>{ page++; }, '#1f8fc9');
 }
 
+function drawUpgradeIcon(type, cx, cy, r){
+  ctx.save(); ctx.translate(cx,cy); ctx.lineCap='round'; ctx.lineJoin='round';
+  const metal=ctx.createLinearGradient(-r,-r,r,r); metal.addColorStop(0,'#ffffff'); metal.addColorStop(.35,'#b9d5e8'); metal.addColorStop(.7,'#547b9b'); metal.addColorStop(1,'#eaf7ff');
+  if(type==='magnet'){
+    ctx.shadowColor='rgba(30,90,150,.35)'; ctx.shadowBlur=5*S;
+    ctx.strokeStyle=metal; ctx.lineWidth=6*S; ctx.beginPath(); ctx.moveTo(-r*.55,-r*.65); ctx.lineTo(-r*.55,r*.12); ctx.quadraticCurveTo(-r*.55,r*.78,0,r*.78); ctx.quadraticCurveTo(r*.55,r*.78,r*.55,r*.12); ctx.lineTo(r*.55,-r*.65); ctx.stroke();
+    ctx.shadowBlur=0; ctx.strokeStyle='#e94b55'; ctx.lineWidth=7*S; ctx.beginPath(); ctx.moveTo(-r*.55,-r*.65); ctx.lineTo(-r*.55,-r*.2); ctx.stroke(); ctx.strokeStyle='#438de0'; ctx.beginPath(); ctx.moveTo(r*.55,-r*.65); ctx.lineTo(r*.55,-r*.2); ctx.stroke();
+  } else if(type==='armor'){
+    ctx.shadowColor='rgba(30,90,150,.35)'; ctx.shadowBlur=5*S;
+    const g=ctx.createLinearGradient(0,-r,0,r); g.addColorStop(0,'#f4fcff'); g.addColorStop(.45,'#83b8d8'); g.addColorStop(1,'#315d83');
+    ctx.fillStyle=g; ctx.strokeStyle='#315a7a'; ctx.lineWidth=1.8*S; ctx.beginPath(); ctx.moveTo(0,-r*.9); ctx.lineTo(r*.72,-r*.55); ctx.lineTo(r*.62,r*.25); ctx.quadraticCurveTo(r*.42,r*.72,0,r); ctx.quadraticCurveTo(-r*.42,r*.72,-r*.62,r*.25); ctx.lineTo(-r*.72,-r*.55); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur=0; ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.lineWidth=2*S; ctx.beginPath(); ctx.moveTo(-r*.35,-r*.45); ctx.lineTo(0,-r*.62); ctx.lineTo(r*.35,-r*.45); ctx.stroke();
+  } else {
+    ctx.shadowColor='rgba(35,110,180,.4)'; ctx.shadowBlur=6*S;
+    const g=ctx.createRadialGradient(-r*.25,-r*.35,1*S,0,0,r); g.addColorStop(0,'#f5ffff'); g.addColorStop(.35,'#8be4ff'); g.addColorStop(1,'#2473b8');
+    ctx.fillStyle=g; ctx.strokeStyle='#28618f'; ctx.lineWidth=2*S; ctx.beginPath(); ctx.arc(0,0,r*.78,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur=0; ctx.strokeStyle='#ffffff'; ctx.lineWidth=2.5*S; ctx.beginPath(); ctx.moveTo(0,-r*.5); ctx.lineTo(0,0); ctx.lineTo(r*.34,r*.2); ctx.stroke();
+    ctx.fillStyle='#ffffff'; ctx.beginPath(); ctx.arc(0,0,2.5*S,0,Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
 function drawShop(){
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#0b4a6f';
@@ -2507,20 +2511,23 @@ function drawShop(){
   uy += 30*S;
   for (const id of Object.keys(UPGRADES)){
     const up = UPGRADES[id], level = save.upgrades[id] || 0;
-    const h = 74*S, btnW = Math.min(112*S, upgradeW*.32), btnH = 36*S;
+    const h = 88*S, btnW = Math.min(112*S, upgradeW*.32), btnH = 36*S;
     panel(upgradeX, uy, upgradeW, h);
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-    ctx.font = Math.round(23*S)+'px Arial, sans-serif'; ctx.fillText(up.icon, upgradeX+10*S, uy+30*S);
-    const tx=upgradeX+48*S, tw=upgradeW-48*S-btnW-18*S;
+    drawUpgradeIcon(id, upgradeX+27*S, uy+37*S, 19*S);
+    const tx=upgradeX+52*S, tw=upgradeW-52*S-btnW-18*S;
     ctx.fillStyle='#0b4a6f'; ctx.font='800 '+Math.round(13*S)+'px Arial, sans-serif';
     ctx.fillText(up.name,tx,uy+23*S,tw);
     ctx.fillStyle='#5b7a8c'; ctx.font=Math.round(10.5*S)+'px Arial, sans-serif';
     const upgradeDescription = id === 'armor'
-      ? (level > 0 ? 'Доп. шансы за уровень: '+level : 'Купите, чтобы получить шанс')
-      : (level === 0 ? 'Притягивает звёздочки' : level === 1 ? 'Притяжение + 5 очков за звезду' : level === 2 ? 'Притяжение + 8 очков (x1,5)' : 'Притяжение + 10 очков (x2)');
-    ctx.fillText(upgradeDescription,tx,uy+40*S,tw);
+      ? 'Даёт дополнительную возможность пережить столкновение.'
+      : id === 'slow'
+        ? 'Замедляет время при опасном сближении с бомбой.'
+        : 'Притягивает звёзды к самолёту, чтобы их было легче собрать.';
+    ctx.fillStyle='#5b7a8c'; ctx.font=Math.round(10.5*S)+'px Arial, sans-serif';
+    wrapText(upgradeDescription, tx, uy+41*S, tw, Math.round(12*S));
     ctx.fillStyle='#d18a12'; ctx.font='700 '+Math.round(11*S)+'px Arial, sans-serif';
-    ctx.fillText('Уровень '+level+'/3',tx,uy+59*S,tw);
+    ctx.fillText('Уровень '+level+'/3',tx,uy+70*S,tw);
     const bx=upgradeX+upgradeW-btnW-9*S, by=uy+(h-btnH)/2;
     if(level>=3) button(bx,by,btnW,btnH,'Максимум',null,'#f5a623');
     else { const price=up.prices[level]; button(bx,by,btnW,btnH,price+' ⭐',()=>buyUpgrade(id),save.stars>=price?'#1f8fc9':'#5b6474','#ffffff'); }
