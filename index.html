@@ -1990,34 +1990,48 @@ function drawPipes(){
     for(const seg of segs){
       const ry=seg[0], rh=seg[1]; if(rh<=0) continue;
       if (useSprite) {
-        // Sprite contains a complete pillar. Draw only its central shaft stretched
-        // to the pipe length, and keep the end cap at the opening. This prevents
-        // the full pillar artwork (including both caps) from being squashed twice.
+        // Keep the artwork's original aspect ratio. The central shaft is tiled
+        // vertically instead of being stretched to the full obstacle height.
         const sw=levelSprite.naturalWidth, sh=levelSprite.naturalHeight;
-        const capTopSrc=Math.round(sh*0.13);
-        const capBottomSrc=Math.round(sh*0.87);
         const capSrcH=Math.max(1, Math.round(sh*0.13));
-        const capDrawH=Math.min(rh, Math.max(18*S, PIPE_W*0.28));
-        const bodySrcY=capTopSrc;
-        const bodySrcH=Math.max(1, capBottomSrc-capTopSrc);
+        const bodySrcY=capSrcH;
+        const bodySrcH=Math.max(1, sh-2*capSrcH);
+        const unitScale=PIPE_W/sw;
+        const capDrawH=capSrcH*unitScale;
+        const bodyTileH=bodySrcH*unitScale;
 
-        ctx.save();
+        const drawShaftTiled=(dx,dy,dw,dh)=>{
+          if(dh<=0 || bodyTileH<=0) return;
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(dx,dy,dw,dh);
+          ctx.clip();
+          for(let yy=dy; yy<dy+dh; yy+=bodyTileH){
+            const partH=Math.min(bodyTileH,dy+dh-yy);
+            const srcH=partH/unitScale;
+            ctx.drawImage(levelSprite,0,bodySrcY,sw,srcH,
+              dx,yy,dw,partH);
+          }
+          ctx.restore();
+        };
+        const drawCap=(sourceY,dx,dy,dw)=>{
+          const h=capDrawH;
+          ctx.drawImage(levelSprite,0,sourceY,sw,capSrcH,
+            dx,dy,dw,h);
+          return h;
+        };
+
         if(seg[2]==='top'){
-          // Upper obstacle: the lower cap faces the flight gap.
-          const bodyH=Math.max(0, rh-capDrawH);
-          if(bodyH>0) ctx.drawImage(levelSprite,0,bodySrcY,sw,bodySrcH,
-            p.x,ry,PIPE_W,bodyH);
-          ctx.drawImage(levelSprite,0,sh-capSrcH,sw,capSrcH,
-            p.x,ry+bodyH,PIPE_W,capDrawH);
-        } else {
-          // Lower obstacle: the upper cap faces the flight gap.
-          ctx.drawImage(levelSprite,0,0,sw,capSrcH,
-            p.x,ry,PIPE_W,capDrawH);
+          // Top obstacle: show the lower end-cap toward the flight gap.
           const bodyH=Math.max(0,rh-capDrawH);
-          if(bodyH>0) ctx.drawImage(levelSprite,0,bodySrcY,sw,bodySrcH,
-            p.x,ry+capDrawH,PIPE_W,bodyH);
+          drawShaftTiled(p.x,ry,PIPE_W,bodyH);
+          drawCap(sh-capSrcH,p.x,ry+bodyH,PIPE_W);
+        } else {
+          // Bottom obstacle: show the upper end-cap toward the flight gap.
+          const capH=drawCap(0,p.x,ry,PIPE_W);
+          const bodyH=Math.max(0,rh-capH);
+          drawShaftTiled(p.x,ry+capH,PIPE_W,bodyH);
         }
-        ctx.restore();
       } else {
         // Procedural fallback remains visible until the selected image is ready.
         const st=pipeStyle(th.pipe);
