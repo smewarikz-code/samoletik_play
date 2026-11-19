@@ -351,7 +351,9 @@ function load(){
   delete save.saturdayResetKey;
   shouldAskInitialPlayerName = !save.playerNameSetupV2;
   if (!save.playerName) save.playerName = 'Игрок';
-  if (!Array.isArray(save.localLeaderboard)) save.localLeaderboard = [];
+  // Очистка локального рейтинга на этом устройстве.
+  save.localLeaderboard = [];
+  try { localStorage.setItem('samoletikSaveV4', JSON.stringify(save)); } catch (e) {}
   if(!save.owned) save.owned = { classic:true, gold:false, diamond:false, cosmic:false, emerald:false, storm:false, phoenix:false };
   for (const id of ['emerald','storm','phoenix']) if (typeof save.owned[id] !== 'boolean') save.owned[id] = false;
   if(!save.upgrades || typeof save.upgrades !== 'object') save.upgrades = {};
@@ -2279,6 +2281,8 @@ const LANG_EXTRA = {
   }
 };
 for (const lang of Object.keys(LANG_EXTRA)) Object.assign(LANG_TEXT[lang], LANG_EXTRA[lang]);
+const LANG_PATCH = {"en": {"Выбор языка": "Choose language", "Загружаем игру…": "Loading game…", "ОНЛАЙН: ": "ONLINE: ", "Награда: ": "Reward: ", "Автоматически замедляет время на 1,5 секунды при опасном сближении с бомбой (1 раз за уровень)": "Automatically slows time for 1.5 seconds when dangerously close to a bomb (once per level)", "Автоматически замедляет время при опасности": "Automatically slows time when danger is near", "Бронепластина": "Armor plate", "Все задания выполнены! +30 ⭐": "All tasks completed! +30 ⭐", "Выполни все три задания и получи 30 ⭐": "Complete all three tasks and get 30 ⭐", "Дополнительные шансы пережить столкновение": "Extra chances to survive a collision", "Достижения": "Achievements", "Ежедневные задания": "Daily tasks", "Завершить первый полёт": "Complete your first flight", "Звёздный магнит": "Star magnet", "Имя игрока": "Player name", "Каждые 5 собранных звёздочек дают +2 дополнительные ⭐": "Every 5 stars collected give +2 bonus ⭐", "МАГНИТ": "MAGNET", "Одно возрождение с короткой неуязвимостью": "One revival with brief invulnerability", "Опытный пилот": "Experienced pilot", "Открыто: ": "Unlocked: ", "Открыть 10-й уровень": "Unlock level 10", "Охотник за звёздами": "Star hunter", "Первый полёт": "First flight", "Покоритель высот": "High flyer", "Пролететь 20 баррикад": "Fly past 20 barriers", "Притягивает звёздочки": "Attracts stars", "Собрать 10 звёздочек": "Collect 10 stars", "Собрать 5 звёздочек": "Collect 5 stars", "Совершить 10 полётов": "Complete 10 flights", "Сыграть 2 полёта": "Play 2 flights", "Твоё имя": "Your name", "Феникс": "Phoenix", "Хроно-модуль": "Chrono module", "ЗАМЕДЛЕНИЕ": "SLOW MOTION", "Не удалось загрузить общий рейтинг": "Could not load global leaderboard"}, "de": {"Выбор языка": "Sprache wählen", "Загружаем игру…": "Spiel wird geladen…", "ОНЛАЙН: ": "ONLINE: ", "Награда: ": "Belohnung: ", "Автоматически замедляет время на 1,5 секунды при опасном сближении с бомбой (1 раз за уровень)": "Verlangsamt die Zeit 1,5 Sekunden lang bei gefährlicher Annäherung an eine Bombe (einmal pro Level)", "Автоматически замедляет время при опасности": "Verlangsamt die Zeit bei Gefahr automatisch", "Бронепластина": "Panzerplatte", "Все задания выполнены! +30 ⭐": "Alle Aufgaben erledigt! +30 ⭐", "Выполни все три задания и получи 30 ⭐": "Erledige alle drei Aufgaben und erhalte 30 ⭐", "Дополнительные шансы пережить столкновение": "Zusätzliche Chancen, einen Zusammenstoß zu überstehen", "Достижения": "Erfolge", "Ежедневные задания": "Tägliche Aufgaben", "Завершить первый полёт": "Ersten Flug abschließen", "Звёздный магнит": "Sternenmagnet", "Имя игрока": "Spielername", "Каждые 5 собранных звёздочек дают +2 дополнительные ⭐": "Je 5 gesammelte Sterne geben +2 zusätzliche ⭐", "МАГНИТ": "MAGNET", "Одно возрождение с короткой неуязвимостью": "Eine Wiederbelebung mit kurzer Unverwundbarkeit", "Опытный пилот": "Erfahrener Pilot", "Открыто: ": "Freigeschaltet: ", "Открыть 10-й уровень": "Level 10 freischalten", "Охотник за звёздами": "Sternenjäger", "Первый полёт": "Erster Flug", "Покоритель высот": "Höhenbezwinger", "Пролететь 20 баррикад": "20 Barrieren passieren", "Притягивает звёздочки": "Zieht Sterne an", "Собрать 10 звёздочек": "10 Sterne sammeln", "Собрать 5 звёздочек": "5 Sterne sammeln", "Совершить 10 полётов": "10 Flüge absolvieren", "Сыграть 2 полёта": "2 Flüge spielen", "Твоё имя": "Dein Name", "Феникс": "Phönix", "Хроно-модуль": "Chrono-Modul", "ЗАМЕДЛЕНИЕ": "ZEITLUPE", "Не удалось загрузить общий рейтинг": "Globale Rangliste konnte nicht geladen werden"}, "es": {"Выбор языка": "Elegir idioma", "Загружаем игру…": "Cargando el juego…", "ОНЛАЙН: ": "EN LÍNEA: ", "Награда: ": "Recompensa: ", "Автоматически замедляет время на 1,5 секунды при опасном сближении с бомбой (1 раз за уровень)": "Ralentiza el tiempo 1,5 segundos al acercarse peligrosamente a una bomba (una vez por nivel)", "Автоматически замедляет время при опасности": "Ralentiza el tiempo automáticamente cuando hay peligro", "Бронепластина": "Placa blindada", "Все задания выполнены! +30 ⭐": "¡Todas las tareas completadas! +30 ⭐", "Выполни все три задания и получи 30 ⭐": "Completa las tres tareas y consigue 30 ⭐", "Дополнительные шансы пережить столкновение": "Más posibilidades de sobrevivir a una colisión", "Достижения": "Logros", "Ежедневные задания": "Tareas diarias", "Завершить первый полёт": "Completa tu primer vuelo", "Звёздный магнит": "Imán de estrellas", "Имя игрока": "Nombre del jugador", "Каждые 5 собранных звёздочек дают +2 дополнительные ⭐": "Cada 5 estrellas recogidas dan +2 ⭐ adicionales", "МАГНИТ": "IMÁN", "Одно возрождение с короткой неуязвимостью": "Una resurrección con breve invulnerabilidad", "Опытный пилот": "Piloto experimentado", "Открыто: ": "Desbloqueado: ", "Открыть 10-й уровень": "Desbloquea el nivel 10", "Охотник за звёздами": "Cazador de estrellas", "Первый полёт": "Primer vuelo", "Покоритель высот": "Conquistador de alturas", "Пролететь 20 баррикад": "Supera 20 barreras", "Притягивает звёздочки": "Atrae estrellas", "Собрать 10 звёздочек": "Recoge 10 estrellas", "Собрать 5 звёздочек": "Recoge 5 estrellas", "Совершить 10 полётов": "Realiza 10 vuelos", "Сыграть 2 полёта": "Juega 2 vuelos", "Твоё имя": "Tu nombre", "Феникс": "Fénix", "Хроно-модуль": "Módulo crono", "ЗАМЕДЛЕНИЕ": "CÁMARA LENTA", "Не удалось загрузить общий рейтинг": "No se pudo cargar la clasificación global"}, "it": {"Выбор языка": "Scegli lingua", "Загружаем игру…": "Caricamento del gioco…", "ОНЛАЙН: ": "ONLINE: ", "Награда: ": "Ricompensa: ", "Автоматически замедляет время на 1,5 секунды при опасном сближении с бомбой (1 раз за уровень)": "Rallenta automaticamente il tempo per 1,5 secondi quando ci si avvicina pericolosamente a una bomba (una volta per livello)", "Автоматически замедляет время при опасности": "Rallenta automaticamente il tempo in caso di pericolo", "Бронепластина": "Piastra corazzata", "Все задания выполнены! +30 ⭐": "Tutte le attività completate! +30 ⭐", "Выполни все три задания и получи 30 ⭐": "Completa tutte e tre le attività e ottieni 30 ⭐", "Дополнительные шансы пережить столкновение": "Altre possibilità di sopravvivere a una collisione", "Достижения": "Obiettivi", "Ежедневные задания": "Attività giornaliere", "Завершить первый полёт": "Completa il primo volo", "Звёздный магнит": "Magnete stellare", "Имя игрока": "Nome giocatore", "Каждые 5 собранных звёздочек дают +2 дополнительные ⭐": "Ogni 5 stelle raccolte danno +2 ⭐ bonus", "МАГНИТ": "MAGNETE", "Одно возрождение с короткой неуязвимостью": "Una rinascita con breve invulnerabilità", "Опытный пилот": "Pilota esperto", "Открыто: ": "Sbloccati: ", "Открыть 10-й уровень": "Sblocca il livello 10", "Охотник за звёздами": "Cacciatore di stelle", "Первый полёт": "Primo volo", "Покоритель высот": "Dominatore delle altezze", "Пролететь 20 баррикад": "Supera 20 barriere", "Притягивает звёздочки": "Attira le stelle", "Собрать 10 звёздочек": "Raccogli 10 stelle", "Собрать 5 звёздочек": "Raccogli 5 stelle", "Совершить 10 полётов": "Completa 10 voli", "Сыграть 2 полёта": "Gioca 2 voli", "Твоё имя": "Il tuo nome", "Феникс": "Fenice", "Хроно-модуль": "Modulo crono", "ЗАМЕДЛЕНИЕ": "RALLENTAMENTO", "Не удалось загрузить общий рейтинг": "Impossibile caricare la classifica globale"}};
+for (const lang of Object.keys(LANG_PATCH)) Object.assign(LANG_TEXT[lang], LANG_PATCH[lang]);
 Object.assign(LANG_TEXT.de, {'горы': 'berge', 'лес': 'wald', 'пустыня': 'wüste', 'вулкан': 'vulkan', 'ночь': 'nacht', 'неон': 'neon', 'космос': 'weltraum', 'льды': 'eis', 'океан': 'ozean', 'осень': 'herbst'});
 Object.assign(LANG_TEXT.it, {'горы': 'montagne', 'лес': 'foresta', 'пустыня': 'deserto', 'вулкан': 'vulcano', 'ночь': 'notte', 'неон': 'neon', 'космос': 'spazio', 'льды': 'ghiaccio', 'океан': 'oceano', 'осень': 'autunno'});
 Object.assign(LANG_TEXT.es, {'горы': 'montañas', 'лес': 'bosque', 'пустыня': 'desierto', 'вулкан': 'volcán', 'ночь': 'noche', 'неон': 'neón', 'космос': 'espacio', 'льды': 'hielo', 'океан': 'océano', 'осень': 'otoño'});
@@ -2294,6 +2298,8 @@ function translateText(value) {
   }
   return text;
 }
+syncLanguageDom();
+
 function translateCanvasText(value) {
   let text = String(value);
   if (gameLang !== 'ru') {
@@ -2316,10 +2322,23 @@ ctx.fillText = function(value, ...args) {
 ctx.strokeText = function(value, ...args) {
   return nativeStrokeText(translateCanvasText(value), ...args);
 };
+function syncLanguageDom() {
+  const title = translateText('Самолётик: Эра приключений');
+  document.title = title;
+  const loading = document.querySelector('#asset-loading .loading-card div:last-child');
+  if (loading) loading.textContent = translateText('Загружаем игру…');
+  const online = document.querySelector('#online-counter');
+  if (online) {
+    const count = online.textContent.match(/[0-9—]+/);
+    online.innerHTML = '<span class="online-dot"></span>' + translateText('ОНЛАЙН: ') + (count ? count[0] : '—');
+  }
+}
 function setGameLanguage(lang) {
+  if (!LANG_TEXT[lang] && lang !== 'ru') return;
   gameLang = lang;
   languageOpen = false;
   try { localStorage.setItem('tgPlaneLang', lang); } catch(e) {}
+  syncLanguageDom();
   haptic('light');
 }
 function drawLanguageControl() {

@@ -1,5 +1,6 @@
 import os
 import uuid
+import hmac
 
 import psycopg
 from flask import Flask, jsonify, request, send_from_directory
@@ -188,6 +189,28 @@ def submit_score():
     except Exception:
         app.logger.exception("Could not save score")
         return jsonify({"error": "score_save_failed"}), 503
+
+
+
+@app.post("/api/admin/reset-leaderboard")
+def reset_leaderboard():
+    # One-time administrative action. Configure LEADERBOARD_RESET_TOKEN in Render.
+    expected_token = os.environ.get("LEADERBOARD_RESET_TOKEN", "")
+    supplied_token = request.headers.get("Authorization", "")
+    if not expected_token:
+        return jsonify({"error": "reset_not_configured"}), 503
+    if not hmac.compare_digest(supplied_token, "Bearer " + expected_token):
+        return jsonify({"error": "unauthorized"}), 401
+
+    try:
+        with get_connection() as conn:
+            ensure_schema(conn)
+            result = conn.execute("DELETE FROM ru_players")
+            deleted = result.rowcount
+        return jsonify({"ok": True, "deleted_players": deleted})
+    except Exception:
+        app.logger.exception("Could not reset leaderboard")
+        return jsonify({"error": "leaderboard_reset_failed"}), 503
 
 
 
