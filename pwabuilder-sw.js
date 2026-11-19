@@ -1,6 +1,6 @@
 // Service Worker for Самолётик: Эра приключений
 // Caches the game shell only. Requests to the leaderboard API are never cached.
-const CACHE_NAME = "samoletik-shell-v1";
+const CACHE_NAME = "samoletik-shell-v2";
 const APP_SHELL = ["/", "/index.html", "/manifest.json", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {

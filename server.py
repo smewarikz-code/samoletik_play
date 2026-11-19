@@ -2,26 +2,11 @@ import os
 import uuid
 
 import psycopg
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from psycopg.rows import dict_row
 
 app = Flask(__name__)
-
-# Serve the game itself from the same Render service as its API.
-GAME_DIR = os.path.dirname(os.path.abspath(__file__))
-
-@app.get("/")
-def game_home():
-    return send_from_directory(GAME_DIR, "index.html")
-
-@app.get("/<path:asset_path>")
-def game_assets(asset_path):
-    # Keep API endpoints handled by their dedicated routes above; serve only
-    # files that are part of the game bundle (images, manifest, service worker, etc.).
-    if asset_path.startswith("api/") or asset_path == "health":
-        return jsonify({"error": "not_found"}), 404
-    return send_from_directory(GAME_DIR, asset_path)
 allowed_origin = os.environ.get("GAME_ORIGIN", "*")
 CORS(app, resources={r"/api/*": {"origins": allowed_origin}},
      methods=["GET", "POST", "OPTIONS"], allow_headers=["Content-Type"])
