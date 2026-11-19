@@ -2,11 +2,28 @@ import os
 import uuid
 
 import psycopg
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory, abort
 from flask_cors import CORS
 from psycopg.rows import dict_row
 
 app = Flask(__name__)
+
+# Serve the game itself from the Render web service.
+GAME_DIR = os.path.dirname(os.path.abspath(__file__))
+
+@app.get("/")
+def game_home():
+    return send_from_directory(GAME_DIR, "index.html")
+
+@app.get("/<path:asset_path>")
+def game_assets(asset_path):
+    # Do not expose backend source or configuration files over HTTP.
+    blocked = {"server.py", "requirements.txt", "Procfile", ".env", ".git"}
+    first_part = asset_path.split("/", 1)[0]
+    if first_part in blocked or asset_path.startswith("."):
+        abort(404)
+    return send_from_directory(GAME_DIR, asset_path)
+
 allowed_origin = os.environ.get("GAME_ORIGIN", "*")
 CORS(app, resources={r"/api/*": {"origins": allowed_origin}},
      methods=["GET", "POST", "OPTIONS"], allow_headers=["Content-Type"])
