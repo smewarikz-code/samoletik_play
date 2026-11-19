@@ -1960,42 +1960,54 @@ function drawPipes(){
   const th=THEMES[themeIdx];
   const sceneIndex = themeIdx % 10;
   const variants = pillarVariantsByScene[sceneIndex] || [0, 1, 2];
+  // Select one pillar model for the entire current level, not separately per pipe.
+  const levelVariantIndex = Math.max(0, (curLevel - 1) % variants.length);
+  const levelSprite = pillarSprites[variants[levelVariantIndex]];
+  const useSprite = levelSprite && levelSprite.complete && levelSprite.naturalWidth > 0;
+
   for(const p of pipes){
     const topH=p.gapY-p.gap/2, botY=p.gapY+p.gap/2, botH=H-GROUND_H-botY;
-    if (p._pillarVariant === undefined) {
-      // Один уровень — один тип столбов. Следующий уровень выбирает следующий
-      // вариант из набора текущего биома; все пары препятствий на уровне одинаковые.
-      const levelVariantIndex = Math.max(0, (curLevel - 1) % variants.length);
-      p._pillarVariant = variants[levelVariantIndex];
-    }
-    const sprite = pillarSprites[p._pillarVariant];
-    const useSprite = sprite && sprite.complete && sprite.naturalWidth > 0;
     const segs=[[0,topH,'top'],[botY,botH,'bottom']];
     for(const seg of segs){
       const ry=seg[0], rh=seg[1]; if(rh<=0) continue;
       if (useSprite) {
+        // Sprite contains a complete pillar. Draw only its central shaft stretched
+        // to the pipe length, and keep the end cap at the opening. This prevents
+        // the full pillar artwork (including both caps) from being squashed twice.
+        const sw=levelSprite.naturalWidth, sh=levelSprite.naturalHeight;
+        const capTopSrc=Math.round(sh*0.13);
+        const capBottomSrc=Math.round(sh*0.87);
+        const capSrcH=Math.max(1, Math.round(sh*0.13));
+        const capDrawH=Math.min(rh, Math.max(18*S, PIPE_W*0.28));
+        const bodySrcY=capTopSrc;
+        const bodySrcH=Math.max(1, capBottomSrc-capTopSrc);
+
         ctx.save();
-        // Keep the visible pillar exactly within the original collision width.
-        // The upper pillar is vertically flipped so its detailed base faces the gap.
-        if (seg[2] === 'top') {
-          ctx.translate(p.x, ry + rh);
-          ctx.scale(1, -1);
-          ctx.drawImage(sprite, 0, 0, sprite.naturalWidth, sprite.naturalHeight,
-            0, 0, PIPE_W, rh);
+        if(seg[2]==='top'){
+          // Upper obstacle: the lower cap faces the flight gap.
+          const bodyH=Math.max(0, rh-capDrawH);
+          if(bodyH>0) ctx.drawImage(levelSprite,0,bodySrcY,sw,bodySrcH,
+            p.x,ry,PIPE_W,bodyH);
+          ctx.drawImage(levelSprite,0,sh-capSrcH,sw,capSrcH,
+            p.x,ry+bodyH,PIPE_W,capDrawH);
         } else {
-          ctx.drawImage(sprite, 0, 0, sprite.naturalWidth, sprite.naturalHeight,
-            p.x, ry, PIPE_W, rh);
+          // Lower obstacle: the upper cap faces the flight gap.
+          ctx.drawImage(levelSprite,0,0,sw,capSrcH,
+            p.x,ry,PIPE_W,capDrawH);
+          const bodyH=Math.max(0,rh-capDrawH);
+          if(bodyH>0) ctx.drawImage(levelSprite,0,bodySrcY,sw,bodySrcH,
+            p.x,ry+capDrawH,PIPE_W,bodyH);
         }
         ctx.restore();
       } else {
-        // Original procedural pipes remain as a fallback while images load.
+        // Procedural fallback remains visible until the selected image is ready.
         const st=pipeStyle(th.pipe);
         ctx.save();
         const body=ctx.createLinearGradient(p.x,0,p.x+PIPE_W,0); body.addColorStop(0,'rgba(0,0,0,.22)'); body.addColorStop(.18,'rgba(255,255,255,.25)'); body.addColorStop(.48,'rgba(255,255,255,.04)'); body.addColorStop(.82,'rgba(0,0,0,.08)'); body.addColorStop(1,'rgba(0,0,0,.28)');
         ctx.fillStyle=st.pattern; ctx.fillRect(p.x,ry,PIPE_W,rh); ctx.fillStyle=th.pipeTint; ctx.fillRect(p.x,ry,PIPE_W,rh); ctx.fillStyle=body; ctx.fillRect(p.x,ry,PIPE_W,rh);
         ctx.fillStyle='rgba(255,255,255,.22)'; ctx.fillRect(p.x+5*S,ry,2*S,rh);
         ctx.fillStyle='rgba(0,0,0,.18)'; ctx.fillRect(p.x+PIPE_W-4*S,ry,3*S,rh);
-        const capH=24*S, capY=seg[2]==='bottom'?ry+rh-capH:ry;
+        const capH=24*S, capY=seg[2]==='bottom'?ry:ry+rh-capH;
         const cap=ctx.createLinearGradient(p.x,capY,p.x,capY+capH); cap.addColorStop(0,'rgba(255,255,255,.38)'); cap.addColorStop(.22,st.cap); cap.addColorStop(1,'rgba(0,0,0,.28)');
         ctx.fillStyle=cap; ctx.fillRect(p.x-5*S,capY,PIPE_W+10*S,capH);
         ctx.strokeStyle='rgba(255,255,255,.48)'; ctx.lineWidth=1.2*S; ctx.strokeRect(p.x-5*S,capY,PIPE_W+10*S,capH);
@@ -2006,7 +2018,6 @@ function drawPipes(){
     }
   }
 }
-
 function drawHazards(){
   for(const h of hazards){
     ctx.save();
