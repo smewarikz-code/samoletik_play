@@ -288,8 +288,8 @@ function themeIndexOf(lvl){ return Math.floor(((lvl|0)-1)/2) % THEMES.length; }
 function themeOf(lvl){ return THEMES[themeIndexOf(lvl)] || THEMES[0]; }
 
 
-function levelSpeed(lvl){ return SPEEDV * (1 + Math.min((lvl-1)*0.0096, 1.4)); }
-function levelGap(lvl){ return GAP; } // Одинаковая ширина прохода на всех уровнях, начиная с первого.
+function levelSpeed(lvl){ return SPEEDV; } // Скорость самолёта не увеличивается при переходе на новые уровни.
+function levelGap(lvl){ return (lvl % 10 === 0) ? GAP * 0.50 : GAP; } // На каждом десятом уровне проход между блоками уже на 50%.
 function levelSpacing(lvl){ return Math.max(170*S, 240*S - Math.min((lvl-1)*0.5*S, 70*S)); }
 
 function mulberry(a){
@@ -1654,8 +1654,7 @@ function step(k){
       // не даём зазору уйти в потолок или в землю
       p.gapY = Math.max(p.gap/2 + 40*S, Math.min(H - GROUND_H - p.gap/2 - 40*S, ny));
     }
-    // Проход всегда строго одинаковой ширины на любом уровне.
-    p.gap = GAP;
+    // Сохраняем ширину прохода, заданную при создании препятствия для текущего уровня.
     p.x -= speed*k;
     if (!p.passed && p.x+PIPE_W < plane.x-PLANE_R){ p.passed = true; addScore(1); haptic('light'); if (state!=='play') return; }
 
