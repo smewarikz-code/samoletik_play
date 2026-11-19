@@ -213,7 +213,7 @@ const WIN_SCORE = MAX_LEVEL * LEVEL_SCORE;
 // Realistic biome-specific pillar artwork. Each pair keeps one stable variant.
 const pillarSprites = Array.from({length:12}, (_, i) => {
   const img = new Image();
-  img.src = `pillars/pillar-${i}.png?v=20261119b`;
+  img.src = `pillars/pillar-${i}.png`;
   return img;
 });
 const pillarVariantsByScene = [
@@ -406,7 +406,7 @@ if (shouldAskInitialPlayerName) showInitialPlayerNameDialog();
 let bgCache = {}, pipePatterns = {}, planeCache = {}, cloudSpr = null;
 const planeImages = {};
 for (const id of ['classic','gold','diamond','cosmic','emerald','storm','phoenix']) {
-  const img = new Image(); img.src = 'planes/' + id + '.png?v=20261119b';
+  const img = new Image(); img.src = 'planes/' + id + '.png';
   img.onload = () => { planeCache[id] = null; }; planeImages[id] = img;
 }
 
@@ -1728,16 +1728,16 @@ function panel(x,y,w,h){
 /* ============ Мир ============ */
 // Десять отдельных иллюстрированных фонов — по одному на каждый мир.
 const levelBackgrounds = [
-  './backgrounds/tropical.jpg?v=20261119b',
-  './backgrounds/ice.jpg?v=20261119b',
-  './backgrounds/neon-city.jpg?v=20261119b',
-  './backgrounds/desert.jpg?v=20261119b',
-  './backgrounds/valley.jpg?v=20261119b',
-  './backgrounds/storm.jpg?v=20261119b',
-  './backgrounds/tropical.jpg?v=20261119b',
-  './backgrounds/neon-city.jpg?v=20261119b',
-  './backgrounds/valley.jpg?v=20261119b',
-  './backgrounds/storm.jpg?v=20261119b'
+  './backgrounds/tropical.jpg',
+  './backgrounds/ice.jpg',
+  './backgrounds/neon-city.jpg',
+  './backgrounds/desert.jpg',
+  './backgrounds/valley.jpg',
+  './backgrounds/storm.jpg',
+  './backgrounds/tropical.jpg',
+  './backgrounds/neon-city.jpg',
+  './backgrounds/valley.jpg',
+  './backgrounds/storm.jpg'
 ].map(src => { const img = new Image(); img.src = src; return img; });
 function drawSky(){
   const bg = levelBackgrounds[((themeIdx % 10) + 10) % 10];
@@ -1963,8 +1963,10 @@ function drawPipes(){
   for(const p of pipes){
     const topH=p.gapY-p.gap/2, botY=p.gapY+p.gap/2, botH=H-GROUND_H-botY;
     if (p._pillarVariant === undefined) {
-      // Stable random appearance for this obstacle pair; never changes while flying.
-      p._pillarVariant = variants[Math.floor(Math.random() * variants.length)];
+      // Один уровень — один тип столбов. Следующий уровень выбирает следующий
+      // вариант из набора текущего биома; все пары препятствий на уровне одинаковые.
+      const levelVariantIndex = Math.max(0, (curLevel - 1) % variants.length);
+      p._pillarVariant = variants[levelVariantIndex];
     }
     const sprite = pillarSprites[p._pillarVariant];
     const useSprite = sprite && sprite.complete && sprite.naturalWidth > 0;
@@ -1972,35 +1974,17 @@ function drawPipes(){
     for(const seg of segs){
       const ry=seg[0], rh=seg[1]; if(rh<=0) continue;
       if (useSprite) {
-        // Рисуем столб без растягивания всей картинки по высоте:
-        // верхняя/нижняя декоративная часть остаётся пропорциональной,
-        // центральная текстура повторяется по длине препятствия.
         ctx.save();
-        const sw = sprite.naturalWidth, sh = sprite.naturalHeight;
-        const sx = Math.round(sw * 0.10), cropW = Math.round(sw * 0.80);
-        const dx = p.x - 4*S, dw = PIPE_W + 8*S;
-        const scale = dw / cropW;
-        const capSrc = Math.round(sh * 0.16);
-        const bodyTop = Math.round(sh * 0.16);
-        const bodyBottom = Math.round(sh * 0.84);
-        const bodySrcH = bodyBottom - bodyTop;
-        const capH = capSrc * scale;
-        const bodyTileH = bodySrcH * scale;
-        const gapFacingTop = seg[2] === 'bottom';
-        const capY = gapFacingTop ? ry : ry + rh - capH;
-        if (gapFacingTop) {
-          ctx.drawImage(sprite, sx, 0, cropW, capSrc, dx, capY, dw, capH);
-        }
-        let y = gapFacingTop ? ry + capH : ry;
-        const bodyEnd = gapFacingTop ? ry + rh : ry + rh - capH;
-        while (y < bodyEnd) {
-          const h = Math.min(bodyTileH, bodyEnd - y);
-          const sourceH = bodySrcH * (h / bodyTileH);
-          ctx.drawImage(sprite, sx, bodyTop, cropW, sourceH, dx, y, dw, h);
-          y += h;
-        }
-        if (!gapFacingTop) {
-          ctx.drawImage(sprite, sx, sh - capSrc, cropW, capSrc, dx, capY, dw, capH);
+        // Keep the visible pillar exactly within the original collision width.
+        // The upper pillar is vertically flipped so its detailed base faces the gap.
+        if (seg[2] === 'top') {
+          ctx.translate(p.x, ry + rh);
+          ctx.scale(1, -1);
+          ctx.drawImage(sprite, 0, 0, sprite.naturalWidth, sprite.naturalHeight,
+            0, 0, PIPE_W, rh);
+        } else {
+          ctx.drawImage(sprite, 0, 0, sprite.naturalWidth, sprite.naturalHeight,
+            p.x, ry, PIPE_W, rh);
         }
         ctx.restore();
       } else {
@@ -2973,36 +2957,7 @@ function loop(now){
   }
   requestAnimationFrame(loop);
 }
-// Не запускаем игровой цикл, пока фон, самолётики и новые столбы не загружены.
-// Это предотвращает показ старого процедурного оформления на первом экране.
-function waitForImage(img, timeoutMs = 12000) {
-  if (img && img.complete && img.naturalWidth > 0) return Promise.resolve(true);
-  return new Promise(resolve => {
-    let settled = false;
-    const finish = value => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve(value);
-    };
-    const timer = setTimeout(() => finish(false), timeoutMs);
-    if (!img) return finish(false);
-    img.addEventListener('load', () => finish(true), { once: true });
-    img.addEventListener('error', () => finish(false), { once: true });
-  });
-}
-const allGameImages = [
-  ...Object.values(planeImages),
-  ...pillarSprites,
-  ...levelBackgrounds
-];
-Promise.all(allGameImages.map(img => waitForImage(img))).then(results => {
-  const failed = results.filter(ok => !ok).length;
-  if (failed) console.warn('Некоторые игровые изображения не загрузились:', failed);
-  last = performance.now();
-  requestAnimationFrame(loop);
-});
-
+requestAnimationFrame(loop);
 </script>
 
 <script>
